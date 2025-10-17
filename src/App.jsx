@@ -17,8 +17,11 @@ export default function PomodoroTimer() {
   const [memo, setMemo] = useState('');
   const [timerType, setTimerType] = useState('work'); // 'work' | 'break'
   const [notificationPermission, setNotificationPermission] = useState('default');
+  const [tags, setTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
   const audioRef = useRef(null);
   const isInitialLoad = useRef(true);
+  const taskTitleInputRef = useRef(null);
 
   // 알림 권한 요청
   useEffect(() => {
@@ -48,6 +51,54 @@ export default function PomodoroTimer() {
     }
   };
 
+  // 태그 추출 함수
+  const extractTags = (text) => {
+    const regex = /#([^\s#]+)/g;
+    const matches = text.match(regex);
+    return matches ? matches.map(tag => tag.substring(1)) : [];
+  };
+
+  // 태그 버튼 클릭 시 커서 위치에 삽입
+  const addTagToTitle = (tag) => {
+    if (!taskTitleInputRef.current) return;
+
+    const input = taskTitleInputRef.current;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const currentValue = taskTitle;
+    const tagText = `#${tag}`;
+
+    // 커서 위치에 태그 삽입
+    const newValue = currentValue.substring(0, start) + tagText + ' ' + currentValue.substring(end);
+    setTaskTitle(newValue);
+
+    // 커서 위치를 태그 뒤로 이동
+    setTimeout(() => {
+      const newCursorPos = start + tagText.length + 1;
+      input.setSelectionRange(newCursorPos, newCursorPos);
+      input.focus();
+    }, 0);
+  };
+
+  // 태그 저장 함수 (중복 제거)
+  const saveTag = (tag) => {
+    if (!tags.includes(tag)) {
+      const newTags = [...tags, tag];
+      setTags(newTags);
+    }
+  };
+
+  // 태그 필터 토글 (선택/해제)
+  const toggleTagFilter = (tag) => {
+    if (selectedTags.includes(tag)) {
+      // 이미 선택된 태그면 제거
+      setSelectedTags(selectedTags.filter(t => t !== tag));
+    } else {
+      // 선택되지 않은 태그면 추가
+      setSelectedTags([...selectedTags, tag]);
+    }
+  };
+
   // 초기 데이터 로드
   useEffect(() => {
     const loadSessions = async () => {
@@ -62,6 +113,11 @@ export default function PomodoroTimer() {
           const memoResult = await ipcRenderer.invoke('load-memo');
           if (memoResult.success) {
             setMemo(memoResult.text);
+          }
+          // 태그 로드
+          const tagsResult = await ipcRenderer.invoke('load-tags');
+          if (tagsResult.success && tagsResult.data) {
+            setTags(tagsResult.data);
           }
           // 데이터 경로 가져오기
           const path = await ipcRenderer.invoke('get-data-path');
@@ -110,6 +166,22 @@ export default function PomodoroTimer() {
     };
     saveMemo();
   }, [memo]);
+
+  // 태그 변경 시 자동 저장
+  useEffect(() => {
+    const saveTags = async () => {
+      try {
+        // 초기 로드가 완료된 후에만 저장
+        if (!isInitialLoad.current && typeof window !== 'undefined' && window.require && tags.length > 0) {
+          const { ipcRenderer } = window.require('electron');
+          await ipcRenderer.invoke('save-tags', tags);
+        }
+      } catch (error) {
+        console.error('태그 저장 실패:', error);
+      }
+    };
+    saveTags();
+  }, [tags]);
 
   // 색상 테마 헬퍼 함수
   const getTimerColors = () => {
@@ -217,6 +289,10 @@ export default function PomodoroTimer() {
   };
 
   const handleTaskCompletion = (completed) => {
+    // 제목에서 태그 추출 및 저장
+    const extractedTags = extractTags(taskTitle);
+    extractedTags.forEach(tag => saveTag(tag));
+
     const newSession = {
       id: Date.now(),
       title: taskTitle,
@@ -238,14 +314,18 @@ export default function PomodoroTimer() {
       alert('작업 제목을 입력해주세요!');
       return;
     }
-    
+
     const elapsedMinutes = Math.ceil((selectedDuration * 60 - timeLeft) / 60);
-    
+
     if (elapsedMinutes === 0) {
       alert('아직 시작하지 않았습니다!');
       return;
     }
-    
+
+    // 제목에서 태그 추출 및 저장
+    const extractedTags = extractTags(taskTitle);
+    extractedTags.forEach(tag => saveTag(tag));
+
     const newSession = {
       id: Date.now(),
       title: taskTitle,
@@ -255,7 +335,7 @@ export default function PomodoroTimer() {
       endTime: new Date(),
       partial: true
     };
-    
+
     setSessions([newSession, ...sessions]);
     setTaskTitle('');
     setTimeLeft(selectedDuration * 60);
@@ -304,7 +384,18 @@ export default function PomodoroTimer() {
 
   const getTodaySessions = () => {
     const today = new Date().toDateString();
-    return sessions.filter(s => new Date(s.timestamp).toDateString() === today);
+    let todaySessions = sessions.filter(s => new Date(s.timestamp).toDateString() === today);
+
+    // 선택된 태그가 있으면 필터링 (교집합: 선택된 모든 태그를 포함하는 세션만)
+    if (selectedTags.length > 0) {
+      todaySessions = todaySessions.filter(session => {
+        const sessionTags = extractTags(session.title);
+        // 선택된 모든 태그가 세션에 포함되어 있는지 확인
+        return selectedTags.every(selectedTag => sessionTags.includes(selectedTag));
+      });
+    }
+
+    return todaySessions;
   };
 
   const getTodayStats = () => {
@@ -429,13 +520,35 @@ export default function PomodoroTimer() {
                     작업 제목
                   </label>
                   <input
+                    ref={taskTitleInputRef}
                     type="text"
                     value={taskTitle}
                     onChange={(e) => setTaskTitle(e.target.value)}
-                    placeholder="예: baseline 코드 작성"
+                    placeholder="예: #cpue baseline 코드 작성"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-lg"
                     disabled={isRunning}
                   />
+                  {/* 태그 버튼 섹션 */}
+                  {tags.length > 0 && (
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-gray-500 mb-2">
+                        📌 빠른 태그
+                      </label>
+                      <div className="flex gap-2 flex-wrap">
+                        {tags.map((tag, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => addTagToTitle(tag)}
+                            disabled={isRunning}
+                            className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium hover:bg-purple-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="mb-8">
@@ -530,7 +643,7 @@ export default function PomodoroTimer() {
                   className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CheckCircle className="w-6 h-6" />
-                  지금 저장
+                  저장
                 </button>
               )}
             </div>
@@ -671,13 +784,64 @@ export default function PomodoroTimer() {
               </div>
             )}
 
+            {/* Tags Section */}
+            {tags.length > 0 && (
+              <div className="mb-8">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                  📌 태그
+                  {selectedTags.length > 0 && (
+                    <span className="ml-2 text-sm font-normal text-gray-500">
+                      ({selectedTags.length}개 선택됨)
+                    </span>
+                  )}
+                </h3>
+                <div className="flex gap-2 flex-wrap">
+                  {tags.map((tag, index) => {
+                    const isSelected = selectedTags.includes(tag);
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => toggleTagFilter(tag)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium shadow-sm transition-all hover:shadow-md ${
+                          isSelected
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white scale-105'
+                            : 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 hover:from-purple-200 hover:to-pink-200'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedTags.length > 0 && (
+                  <button
+                    onClick={() => setSelectedTags([])}
+                    className="mt-3 text-sm text-gray-500 hover:text-gray-700 underline"
+                  >
+                    필터 초기화
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Session History */}
             <div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">오늘의 작업 기록</h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                오늘의 작업 기록
+                {selectedTags.length > 0 && (
+                  <span className="ml-2 text-sm font-normal text-purple-600">
+                    (필터링됨: {selectedTags.map(t => `#${t}`).join(', ')})
+                  </span>
+                )}
+              </h3>
               {getTodaySessions().length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>아직 기록된 세션이 없습니다</p>
+                  <p>
+                    {selectedTags.length > 0
+                      ? '선택한 태그와 일치하는 작업 기록이 없습니다'
+                      : '아직 기록된 세션이 없습니다'}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3">

@@ -67,6 +67,10 @@ function getMemoFilePath() {
   return path.join(getDataPath(), 'dotime-memo.json');
 }
 
+function getTagsFilePath() {
+  return path.join(getDataPath(), 'dotime-tags.json');
+}
+
 // data 폴더 생성 (없으면)
 function ensureDataDirectory() {
   const dataPath = getDataPath();
@@ -166,5 +170,33 @@ ipcMain.handle('load-memo', async () => {
   } catch (error) {
     console.error('메모 로드 실패:', error);
     return { success: false, error: error.message, text: '' };
+  }
+});
+
+// 태그 저장
+ipcMain.handle('save-tags', async (event, tags) => {
+  try {
+    ensureDataDirectory();
+    const filePath = getTagsFilePath();
+    fs.writeFileSync(filePath, JSON.stringify(tags, null, 2), 'utf-8');
+    return { success: true, path: filePath };
+  } catch (error) {
+    console.error('태그 저장 실패:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 태그 로드
+ipcMain.handle('load-tags', async () => {
+  try {
+    const filePath = getTagsFilePath();
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf-8');
+      return { success: true, data: JSON.parse(data) };
+    }
+    return { success: true, data: [] }; // 파일 없으면 빈 배열
+  } catch (error) {
+    console.error('태그 로드 실패:', error);
+    return { success: false, error: error.message, data: [] };
   }
 });
