@@ -542,7 +542,7 @@ export default function PomodoroTimer() {
                   시간 설정
                 </label>
                 <div className="flex gap-3 flex-wrap">
-                  {[15, 25, 30, 45, 60].map(mins => (
+                  {[5, 10, 15, 25, 30, 45, 60].map(mins => (
                     <button
                       key={mins}
                       onClick={() => setDuration(mins)}
