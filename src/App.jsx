@@ -248,9 +248,9 @@ export default function PomodoroTimer() {
         {/* Header */}
         <div className={`text-center relative ${focusMode ? 'mb-4 pt-4' : 'mb-8 pt-8'}`}>
           <h1 className={`font-bold text-gray-800 ${focusMode ? 'text-xl mb-1' : 'text-4xl mb-2'}`}>
-            🍅 뽀모도로 타이머
+            ⏰ DoTime
           </h1>
-          {!focusMode && <p className="text-gray-600">집중력을 높이고 생산성을 추적하세요</p>}
+          {!focusMode && <p className="text-gray-600">작업 실행 시간을 기록하고 추적하세요</p>}
           {/* Always on Top Button */}
           <button
             onClick={toggleAlwaysOnTop}
@@ -534,7 +534,7 @@ export default function PomodoroTimer() {
             {dataPath && (
               <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <h3 className="text-sm font-semibold text-gray-700 mb-2">📁 데이터 저장 위치</h3>
-                <p className="text-xs text-gray-600 font-mono break-all">{dataPath}\pomodoro-sessions.json</p>
+                <p className="text-xs text-gray-600 font-mono break-all">{dataPath}\dotime-sessions.json</p>
                 <p className="text-xs text-gray-500 mt-1">프로그램 종료 후에도 기록이 유지됩니다</p>
               </div>
             )}

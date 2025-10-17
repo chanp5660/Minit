@@ -1,7 +1,7 @@
 {
-  "name": "pomodoro-timer",
+  "name": "dotime",
   "version": "1.0.0",
-  "description": "뽀모도로 타이머 - 집중력과 생산성 향상 도구",
+  "description": "DoTime - 실행 시간 기록",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,7 @@
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "vite build && electron-builder"
   },
-  "keywords": ["pomodoro", "timer", "productivity"],
+  "keywords": ["dotime", "timer", "productivity", "time-tracking"],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -27,8 +27,8 @@
     "lucide-react": "^0.294.0"
   },
   "build": {
-    "appId": "com.pomodoro.timer",
-    "productName": "뽀모도로 타이머",
+    "appId": "com.dotime.app",
+    "productName": "DoTime",
     "directories": {
       "output": "dist-electron"
     },

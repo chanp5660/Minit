@@ -16,7 +16,7 @@ function createWindow() {
       devTools: true
     },
     icon: path.join(__dirname, '../build/icon.png'),
-    title: '🍅 뽀모도로 타이머'
+    title: '⏰ DoTime'
   });
 
   // 개발 모드와 프로덕션 모드 구분
@@ -60,11 +60,11 @@ function getDataPath() {
 }
 
 function getSessionsFilePath() {
-  return path.join(getDataPath(), 'pomodoro-sessions.json');
+  return path.join(getDataPath(), 'dotime-sessions.json');
 }
 
 function getMemoFilePath() {
-  return path.join(getDataPath(), 'pomodoro-memo.json');
+  return path.join(getDataPath(), 'dotime-memo.json');
 }
 
 // data 폴더 생성 (없으면)
