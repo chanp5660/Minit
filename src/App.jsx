@@ -15,8 +15,38 @@ export default function PomodoroTimer() {
   const [alwaysOnTop, setAlwaysOnTop] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [memo, setMemo] = useState('');
+  const [timerType, setTimerType] = useState('work'); // 'work' | 'break'
+  const [notificationPermission, setNotificationPermission] = useState('default');
   const audioRef = useRef(null);
   const isInitialLoad = useRef(true);
+
+  // 알림 권한 요청
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        setNotificationPermission(permission);
+      });
+    } else if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
+
+  // 시스템 알림 발송 함수
+  const sendNotification = (title, body) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const notification = new Notification(title, {
+        body: body,
+        icon: '🍅',
+        badge: '🍅',
+        tag: 'dotime-timer'
+      });
+
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    }
+  };
 
   // 초기 데이터 로드
   useEffect(() => {
@@ -81,6 +111,35 @@ export default function PomodoroTimer() {
     saveMemo();
   }, [memo]);
 
+  // 색상 테마 헬퍼 함수
+  const getTimerColors = () => {
+    if (timerType === 'work') {
+      return {
+        primary: 'purple-500',
+        secondary: 'purple-600',
+        light: 'purple-50',
+        gradient: {
+          from: '#a855f7', // purple-500
+          to: '#ec4899'    // pink-500
+        },
+        text: 'purple-600'
+      };
+    } else {
+      return {
+        primary: 'blue-500',
+        secondary: 'blue-600',
+        light: 'blue-50',
+        gradient: {
+          from: '#3b82f6', // blue-500
+          to: '#10b981'    // green-500
+        },
+        text: 'blue-600'
+      };
+    }
+  };
+
+  const colors = getTimerColors();
+
   useEffect(() => {
     let interval = null;
     if (isRunning && timeLeft > 0) {
@@ -89,13 +148,24 @@ export default function PomodoroTimer() {
       }, 1000);
     } else if (timeLeft === 0 && isRunning) {
       setIsRunning(false);
-      setShowConfirmation(true);
+
+      // 오디오 재생
       if (audioRef.current) {
         audioRef.current.play();
       }
+
+      // 시스템 알림 발송
+      if (timerType === 'work') {
+        sendNotification('🍅 타이머 완료!', `"${taskTitle}" 작업 시간이 끝났습니다.`);
+        setShowConfirmation(true);
+      } else {
+        sendNotification('🍅 휴식 완료!', '휴식 시간이 끝났습니다. 다시 집중해볼까요?');
+        // 휴식 타이머는 확인 모달 없이 자동으로 리셋
+        setTimeLeft(selectedDuration * 60);
+      }
     }
     return () => clearInterval(interval);
-  }, [isRunning, timeLeft]);
+  }, [isRunning, timeLeft, timerType, taskTitle, selectedDuration, sendNotification]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -103,8 +173,17 @@ export default function PomodoroTimer() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const toggleTimerType = () => {
+    if (isRunning) {
+      return; // 타이머 실행 중에는 전환 불가
+    }
+    const newType = timerType === 'work' ? 'break' : 'work';
+    setTimerType(newType);
+    setTimeLeft(selectedDuration * 60);
+  };
+
   const startTimer = () => {
-    if (!focusMode && !taskTitle.trim()) {
+    if (!focusMode && timerType === 'work' && !taskTitle.trim()) {
       alert('작업 제목을 입력해주세요!');
       return;
     }
@@ -288,7 +367,7 @@ export default function PomodoroTimer() {
               onClick={() => setActiveTab('timer')}
               className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
                 activeTab === 'timer'
-                  ? 'bg-purple-500 text-white shadow-md'
+                  ? `${timerType === 'work' ? 'bg-purple-500' : 'bg-blue-500'} text-white shadow-md`
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
@@ -299,7 +378,7 @@ export default function PomodoroTimer() {
               onClick={() => setActiveTab('stats')}
               className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
                 activeTab === 'stats'
-                  ? 'bg-purple-500 text-white shadow-md'
+                  ? `${timerType === 'work' ? 'bg-purple-500' : 'bg-blue-500'} text-white shadow-md`
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
@@ -312,21 +391,60 @@ export default function PomodoroTimer() {
         {/* Timer Tab */}
         {(activeTab === 'timer' || focusMode) && (
           <div className={`bg-white rounded-2xl shadow-xl ${focusMode ? 'p-4' : 'p-8'}`}>
+            {/* Timer Type Toggle */}
+            {!focusMode && (
+              <div className="flex justify-center mb-6">
+                <div className={`inline-flex rounded-lg p-1 ${timerType === 'work' ? 'bg-purple-100' : 'bg-blue-100'}`}>
+                  <button
+                    onClick={() => timerType === 'break' && toggleTimerType()}
+                    disabled={isRunning}
+                    className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                      timerType === 'work'
+                        ? 'bg-purple-500 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    💼 작업
+                  </button>
+                  <button
+                    onClick={() => timerType === 'work' && toggleTimerType()}
+                    disabled={isRunning}
+                    className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                      timerType === 'break'
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    ☕ 휴식
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Task Input */}
             {!focusMode && (
-              <div className="mb-8">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  작업 제목
-                </label>
-                <input
-                  type="text"
-                  value={taskTitle}
-                  onChange={(e) => setTaskTitle(e.target.value)}
-                  placeholder="예: baseline 코드 작성"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-lg"
-                  disabled={isRunning}
-                />
-              </div>
+              timerType === 'work' ? (
+                <div className="mb-8">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    작업 제목
+                  </label>
+                  <input
+                    type="text"
+                    value={taskTitle}
+                    onChange={(e) => setTaskTitle(e.target.value)}
+                    placeholder="예: baseline 코드 작성"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-lg"
+                    disabled={isRunning}
+                  />
+                </div>
+              ) : (
+                <div className="mb-8">
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 text-center">
+                    <p className="text-blue-700 font-medium text-lg">☕ 휴식 중입니다</p>
+                    <p className="text-blue-600 text-sm mt-1">잠시 쉬면서 재충전하세요!</p>
+                  </div>
+                </div>
+              )
             )}
 
             {/* Timer Display with Circle Progress */}
@@ -357,13 +475,13 @@ export default function PomodoroTimer() {
                   />
                   <defs>
                     <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#a855f7" />
-                      <stop offset="100%" stopColor="#ec4899" />
+                      <stop offset="0%" stopColor={colors.gradient.from} />
+                      <stop offset="100%" stopColor={colors.gradient.to} />
                     </linearGradient>
                   </defs>
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <div className={`font-bold text-purple-600 ${focusMode ? 'text-4xl mb-1' : 'text-6xl mb-2'}`}>
+                  <div className={`font-bold ${timerType === 'work' ? 'text-purple-600' : 'text-blue-600'} ${focusMode ? 'text-4xl mb-1' : 'text-6xl mb-2'}`}>
                     {formatTime(timeLeft)}
                   </div>
                   <div className={`text-gray-500 ${focusMode ? 'text-sm' : 'text-lg'}`}>
@@ -405,7 +523,7 @@ export default function PomodoroTimer() {
                 <RotateCcw className={focusMode ? 'w-4 h-4' : 'w-6 h-6'} />
                 리셋
               </button>
-              {!focusMode && (
+              {!focusMode && timerType === 'work' && (
                 <button
                   onClick={saveCurrentSession}
                   disabled={!taskTitle.trim() || timeLeft === selectedDuration * 60}
@@ -420,7 +538,7 @@ export default function PomodoroTimer() {
             {/* Duration Presets */}
             {!focusMode && (
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+                <label className={`block text-sm font-medium mb-3 ${timerType === 'work' ? 'text-gray-700' : 'text-gray-700'}`}>
                   시간 설정
                 </label>
                 <div className="flex gap-3 flex-wrap">
@@ -431,7 +549,7 @@ export default function PomodoroTimer() {
                       disabled={isRunning}
                       className={`px-6 py-2 rounded-lg font-medium transition-all ${
                         selectedDuration === mins
-                          ? 'bg-purple-500 text-white shadow-md'
+                          ? `${timerType === 'work' ? 'bg-purple-500' : 'bg-blue-500'} text-white shadow-md`
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
@@ -450,7 +568,9 @@ export default function PomodoroTimer() {
                   value={customMinutes}
                   onChange={(e) => setCustomMinutes(e.target.value)}
                   placeholder="사용자 정의 (분)"
-                  className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none"
+                  className={`flex-1 px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none ${
+                    timerType === 'work' ? 'focus:border-purple-500' : 'focus:border-blue-500'
+                  }`}
                   disabled={isRunning}
                   min="1"
                   max="180"
@@ -458,7 +578,11 @@ export default function PomodoroTimer() {
                 <button
                   onClick={handleCustomDuration}
                   disabled={isRunning || !customMinutes}
-                  className="px-6 py-2 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`px-6 py-2 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    timerType === 'work'
+                      ? 'bg-purple-500 hover:bg-purple-600'
+                      : 'bg-blue-500 hover:bg-blue-600'
+                  }`}
                 >
                   설정
                 </button>
@@ -470,12 +594,20 @@ export default function PomodoroTimer() {
               <div className="mt-8 pt-6 border-t-2 border-gray-100">
                 <h3 className="text-lg font-semibold text-gray-700 mb-3">오늘의 요약</h3>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-purple-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-purple-600">{stats.totalHours}h</div>
+                  <div className={`rounded-lg p-4 text-center ${
+                    timerType === 'work' ? 'bg-purple-50' : 'bg-blue-50'
+                  }`}>
+                    <div className={`text-2xl font-bold ${
+                      timerType === 'work' ? 'text-purple-600' : 'text-blue-600'
+                    }`}>{stats.totalHours}h</div>
                     <div className="text-sm text-gray-600">집중 시간</div>
                   </div>
-                  <div className="bg-blue-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-600">{stats.sessionCount}</div>
+                  <div className={`rounded-lg p-4 text-center ${
+                    timerType === 'work' ? 'bg-blue-50' : 'bg-green-50'
+                  }`}>
+                    <div className={`text-2xl font-bold ${
+                      timerType === 'work' ? 'text-blue-600' : 'text-green-600'
+                    }`}>{stats.sessionCount}</div>
                     <div className="text-sm text-gray-600">총 세션</div>
                   </div>
                   <div className="bg-green-50 rounded-lg p-4 text-center">
