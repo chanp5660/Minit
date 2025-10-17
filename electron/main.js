@@ -103,3 +103,21 @@ ipcMain.handle('load-sessions', async () => {
 ipcMain.handle('get-data-path', async () => {
   return getDataPath();
 });
+
+// Always on Top 토글
+ipcMain.handle('toggle-always-on-top', async () => {
+  if (mainWindow) {
+    const currentState = mainWindow.isAlwaysOnTop();
+    mainWindow.setAlwaysOnTop(!currentState);
+    return !currentState;
+  }
+  return false;
+});
+
+// Always on Top 상태 조회
+ipcMain.handle('get-always-on-top', async () => {
+  if (mainWindow) {
+    return mainWindow.isAlwaysOnTop();
+  }
+  return false;
+});

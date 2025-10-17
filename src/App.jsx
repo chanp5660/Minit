@@ -12,6 +12,7 @@ export default function PomodoroTimer() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [currentSessionStart, setCurrentSessionStart] = useState(null);
   const [dataPath, setDataPath] = useState('');
+  const [alwaysOnTop, setAlwaysOnTop] = useState(false);
   const audioRef = useRef(null);
 
   // 초기 데이터 로드
@@ -27,6 +28,9 @@ export default function PomodoroTimer() {
           // 데이터 경로 가져오기
           const path = await ipcRenderer.invoke('get-data-path');
           setDataPath(path);
+          // Always on Top 상태 가져오기
+          const isAlwaysOnTop = await ipcRenderer.invoke('get-always-on-top');
+          setAlwaysOnTop(isAlwaysOnTop);
         }
       } catch (error) {
         console.error('데이터 로드 실패:', error);
@@ -158,6 +162,18 @@ export default function PomodoroTimer() {
     setSessions(sessions.filter(s => s.id !== sessionId));
   };
 
+  const toggleAlwaysOnTop = async () => {
+    try {
+      if (typeof window !== 'undefined' && window.require) {
+        const { ipcRenderer } = window.require('electron');
+        const newState = await ipcRenderer.invoke('toggle-always-on-top');
+        setAlwaysOnTop(newState);
+      }
+    } catch (error) {
+      console.error('Always on Top 토글 실패:', error);
+    }
+  };
+
   const getTodaySessions = () => {
     const today = new Date().toDateString();
     return sessions.filter(s => new Date(s.timestamp).toDateString() === today);
@@ -181,9 +197,21 @@ export default function PomodoroTimer() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8 pt-8">
+        <div className="text-center mb-8 pt-8 relative">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">🍅 뽀모도로 타이머</h1>
           <p className="text-gray-600">집중력을 높이고 생산성을 추적하세요</p>
+          {/* Always on Top Button */}
+          <button
+            onClick={toggleAlwaysOnTop}
+            className={`absolute top-0 right-0 p-3 rounded-lg transition-all shadow-md ${
+              alwaysOnTop
+                ? 'bg-purple-500 text-white hover:bg-purple-600'
+                : 'bg-white text-gray-600 hover:bg-gray-100'
+            }`}
+            title={alwaysOnTop ? '최상단 고정 해제' : '최상단 고정'}
+          >
+            📌
+          </button>
         </div>
 
         {/* Tab Navigation */}
