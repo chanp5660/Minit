@@ -121,3 +121,17 @@ ipcMain.handle('get-always-on-top', async () => {
   }
   return false;
 });
+
+// 윈도우 크기 설정
+ipcMain.handle('set-window-size', async (event, width, height, minWidth, minHeight) => {
+  if (mainWindow) {
+    // 최소 크기 설정 (전달된 경우)
+    if (minWidth && minHeight) {
+      mainWindow.setMinimumSize(minWidth, minHeight);
+    }
+    mainWindow.setSize(width, height);
+    mainWindow.center(); // 화면 중앙으로 이동
+    return { success: true };
+  }
+  return { success: false };
+});
