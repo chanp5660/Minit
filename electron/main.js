@@ -63,6 +63,10 @@ function getSessionsFilePath() {
   return path.join(getDataPath(), 'pomodoro-sessions.json');
 }
 
+function getMemoFilePath() {
+  return path.join(getDataPath(), 'pomodoro-memo.json');
+}
+
 // data 폴더 생성 (없으면)
 function ensureDataDirectory() {
   const dataPath = getDataPath();
@@ -134,4 +138,33 @@ ipcMain.handle('set-window-size', async (event, width, height, minWidth, minHeig
     return { success: true };
   }
   return { success: false };
+});
+
+// 메모 저장
+ipcMain.handle('save-memo', async (event, memoText) => {
+  try {
+    ensureDataDirectory();
+    const filePath = getMemoFilePath();
+    fs.writeFileSync(filePath, JSON.stringify({ text: memoText }, null, 2), 'utf-8');
+    return { success: true, path: filePath };
+  } catch (error) {
+    console.error('메모 저장 실패:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 메모 로드
+ipcMain.handle('load-memo', async () => {
+  try {
+    const filePath = getMemoFilePath();
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf-8');
+      const parsed = JSON.parse(data);
+      return { success: true, text: parsed.text || '' };
+    }
+    return { success: true, text: '' }; // 파일 없으면 빈 문자열
+  } catch (error) {
+    console.error('메모 로드 실패:', error);
+    return { success: false, error: error.message, text: '' };
+  }
 });

@@ -14,7 +14,9 @@ export default function PomodoroTimer() {
   const [dataPath, setDataPath] = useState('');
   const [alwaysOnTop, setAlwaysOnTop] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [memo, setMemo] = useState('');
   const audioRef = useRef(null);
+  const isInitialLoad = useRef(true);
 
   // 초기 데이터 로드
   useEffect(() => {
@@ -26,12 +28,20 @@ export default function PomodoroTimer() {
           if (result.success && result.data) {
             setSessions(result.data);
           }
+          // 메모 로드
+          const memoResult = await ipcRenderer.invoke('load-memo');
+          if (memoResult.success) {
+            setMemo(memoResult.text);
+          }
           // 데이터 경로 가져오기
           const path = await ipcRenderer.invoke('get-data-path');
           setDataPath(path);
           // Always on Top 상태 가져오기
           const isAlwaysOnTop = await ipcRenderer.invoke('get-always-on-top');
           setAlwaysOnTop(isAlwaysOnTop);
+
+          // 초기 로드 완료
+          isInitialLoad.current = false;
         }
       } catch (error) {
         console.error('데이터 로드 실패:', error);
@@ -54,6 +64,22 @@ export default function PomodoroTimer() {
     };
     saveSessions();
   }, [sessions]);
+
+  // 메모 변경 시 자동 저장
+  useEffect(() => {
+    const saveMemo = async () => {
+      try {
+        // 초기 로드가 완료된 후에만 저장
+        if (!isInitialLoad.current && typeof window !== 'undefined' && window.require) {
+          const { ipcRenderer } = window.require('electron');
+          await ipcRenderer.invoke('save-memo', memo);
+        }
+      } catch (error) {
+        console.error('메모 저장 실패:', error);
+      }
+    };
+    saveMemo();
+  }, [memo]);
 
   useEffect(() => {
     let interval = null;
@@ -457,6 +483,21 @@ export default function PomodoroTimer() {
                     <div className="text-sm text-gray-600">완료</div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Memo Section */}
+            {!focusMode && (
+              <div className="mt-6 pt-6 border-t-2 border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-700 mb-3">📝 메모</h3>
+                <textarea
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  placeholder="오늘의 계획이나 메모를 자유롭게 작성하세요..."
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none resize-none text-gray-700"
+                  rows="6"
+                />
+                <p className="text-xs text-gray-500 mt-2">💾 자동으로 저장됩니다</p>
               </div>
             )}
           </div>
