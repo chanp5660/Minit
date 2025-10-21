@@ -100,10 +100,10 @@ npm run electron:build
 ## 스크린샷
 
 ### 라이트 모드 - 타이머
-[스크린샷 추가 예정]
+![라이트 모드 타이머](https://i.imgur.com/imTSQCX.png)
 
 ### 다크 모드 - 통계 (타임라인)
-[스크린샷 추가 예정]
+![다크 모드 통계](https://i.imgur.com/hxad0UK.png)
 
 ## 기술 스택
 
