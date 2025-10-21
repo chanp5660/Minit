@@ -457,8 +457,8 @@ export default function PomodoroTimer() {
 
         // 윈도우 크기 조절
         if (newFocusMode) {
-          // 집중 모드: 작은 크기, 최소 크기도 작게 설정
-          await ipcRenderer.invoke('set-window-size', 450, 600, 300, 400);
+          // 집중 모드: 작은 크기, 최소 크기도 작게 설정 (가로 2/3, 세로 5/6)
+          await ipcRenderer.invoke('set-window-size', 300, 500, 250, 400);
         } else {
           // 일반 모드: 기본 크기, 최소 크기 복원
           await ipcRenderer.invoke('set-window-size', 1200, 900, 800, 600);
@@ -513,7 +513,7 @@ export default function PomodoroTimer() {
           <h1 className={`font-bold ${
             darkMode ? 'text-gray-100' : 'text-gray-800'
           } ${focusMode ? 'text-xl mb-1' : 'text-4xl mb-2'}`}>
-            ⏰ DoTime
+            {focusMode ? (taskTitle.trim() || '작업 제목 없음') : '⏰ DoTime'}
           </h1>
           {!focusMode && <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>작업 실행 시간을 기록하고 추적하세요</p>}
           {/* Always on Top Button */}
@@ -1274,7 +1274,7 @@ export default function PomodoroTimer() {
                           ))}
                         </div>
 
-                        {/* Timeline Track */}
+                        {/* Timeline Track with Multi-Column Layout */}
                         <div className={`flex-1 relative rounded-lg border-2 ${
                           darkMode
                             ? 'bg-gray-700 border-gray-600'
@@ -1291,53 +1291,99 @@ export default function PomodoroTimer() {
                             />
                           ))}
 
-                          {/* Session Bars */}
-                          {getTodaySessions().map(session => {
-                            const startDate = new Date(session.timestamp);
-                            const endDate = session.endTime ? new Date(session.endTime) : new Date(startDate.getTime() + session.duration * 60000);
+                          {/* Multi-Column Session Layout */}
+                          {(() => {
+                            const sessions = getTodaySessions();
+                            const columns = [];
+                            const sessionColumns = new Map();
 
-                            // Calculate position and height
-                            const startHour = startDate.getHours() + startDate.getMinutes() / 60;
-                            const durationHours = session.duration / 60;
-                            const topPercent = (startHour / 24) * 100;
-                            const heightPercent = (durationHours / 24) * 100;
+                            // 겹침 감지 및 컬럼 배치 알고리즘
+                            sessions.forEach(session => {
+                              const startDate = new Date(session.timestamp);
+                              const endDate = session.endTime ? new Date(session.endTime) : new Date(startDate.getTime() + session.duration * 60000);
+                              
+                              // 이 세션과 겹치는 세션들을 찾아서 사용 중인 컬럼들 확인
+                              const overlappingSessions = sessions.filter(otherSession => {
+                                if (otherSession.id === session.id) return false;
+                                
+                                const otherStartDate = new Date(otherSession.timestamp);
+                                const otherEndDate = otherSession.endTime 
+                                  ? new Date(otherSession.endTime) 
+                                  : new Date(otherStartDate.getTime() + otherSession.duration * 60000);
+                                
+                                return startDate < otherEndDate && endDate > otherStartDate;
+                              });
 
-                            // Check if this session overlaps with any other session
-                            const hasOverlap = getTodaySessions().some(otherSession => {
-                              if (otherSession.id === session.id) return false;
+                              // 겹치는 세션들이 사용 중인 컬럼들
+                              const usedColumns = new Set();
+                              overlappingSessions.forEach(overlappingSession => {
+                                const column = sessionColumns.get(overlappingSession.id);
+                                if (column !== undefined) {
+                                  usedColumns.add(column);
+                                }
+                              });
 
-                              const otherStartDate = new Date(otherSession.timestamp);
-                              const otherEndDate = otherSession.endTime
-                                ? new Date(otherSession.endTime)
-                                : new Date(otherStartDate.getTime() + otherSession.duration * 60000);
+                              // 사용 가능한 첫 번째 컬럼 찾기
+                              let assignedColumn = 0;
+                              while (usedColumns.has(assignedColumn)) {
+                                assignedColumn++;
+                              }
 
-                              // Check if sessions overlap
-                              return startDate < otherEndDate && endDate > otherStartDate;
+                              sessionColumns.set(session.id, assignedColumn);
+                              
+                              // 컬럼 배열 확장
+                              while (columns.length <= assignedColumn) {
+                                columns.push([]);
+                              }
+                              columns[assignedColumn].push(session);
                             });
 
-                            return (
+                            return columns.map((columnSessions, columnIndex) => (
                               <div
-                                key={session.id}
-                                onClick={() => setSelectedSession(session)}
-                                className={`absolute left-2 right-2 rounded-lg cursor-pointer transition-all hover:opacity-90 hover:scale-105 ${
-                                  session.completed
-                                    ? 'bg-gradient-to-r from-green-500 to-green-600'
-                                    : 'bg-gradient-to-r from-red-500 to-red-600'
-                                } ${session.partial ? 'border-2 border-dashed border-white' : ''}`}
+                                key={columnIndex}
+                                className="absolute top-0 bottom-0"
                                 style={{
-                                  top: `${topPercent}%`,
-                                  height: `${Math.max(heightPercent, 2)}%`,
-                                  opacity: hasOverlap ? 0.7 : 1.0
+                                  left: `${(columnIndex / Math.max(columns.length, 1)) * 100}%`,
+                                  width: `${100 / Math.max(columns.length, 1)}%`,
+                                  paddingLeft: columnIndex > 0 ? '2px' : '8px',
+                                  paddingRight: columnIndex < columns.length - 1 ? '2px' : '8px'
                                 }}
-                                title={`${session.title} - ${startDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`}
                               >
-                                <div className="p-2 text-white text-sm font-medium truncate">
-                                  <div className="truncate">{session.title}</div>
-                                  <div className="text-xs opacity-90">{session.duration}분</div>
-                                </div>
+                                {columnSessions.map(session => {
+                                  const startDate = new Date(session.timestamp);
+                                  const endDate = session.endTime ? new Date(session.endTime) : new Date(startDate.getTime() + session.duration * 60000);
+
+                                  // Calculate position and height
+                                  const startHour = startDate.getHours() + startDate.getMinutes() / 60;
+                                  const durationHours = session.duration / 60;
+                                  const topPercent = (startHour / 24) * 100;
+                                  const heightPercent = (durationHours / 24) * 100;
+
+                                  return (
+                                    <div
+                                      key={session.id}
+                                      onClick={() => setSelectedSession(session)}
+                                      className={`absolute left-0 right-0 rounded-lg cursor-pointer transition-all hover:opacity-90 hover:scale-105 ${
+                                        session.completed
+                                          ? 'bg-gradient-to-r from-green-500 to-green-600'
+                                          : 'bg-gradient-to-r from-red-500 to-red-600'
+                                      } ${session.partial ? 'border-2 border-dashed border-white' : ''}`}
+                                      style={{
+                                        top: `${topPercent}%`,
+                                        height: `${Math.max(heightPercent, 2)}%`
+                                      }}
+                                      title={`${session.title} - ${startDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`}
+                                    >
+                                      <div className="p-2 text-white text-sm font-medium truncate">
+                                        <div className="truncate">{session.title}</div>
+                                        <div className="text-xs opacity-90">{session.duration}분</div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
+                            ));
+                          })()}
                         </div>
                       </div>
                     </div>
