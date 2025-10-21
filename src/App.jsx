@@ -348,6 +348,17 @@ export default function PomodoroTimer() {
     setSessions(sessions.filter(s => s.id !== sessionId));
   };
 
+  const restartSession = (session) => {
+    // 세션의 제목과 시간으로 타이머 설정
+    setTaskTitle(session.title);
+    setSelectedDuration(session.duration);
+    setTimeLeft(session.duration * 60);
+    setTimerType('work');
+    setIsRunning(false);
+    // 타이머 탭으로 전환
+    setActiveTab('timer');
+  };
+
   const toggleAlwaysOnTop = async () => {
     try {
       if (typeof window !== 'undefined' && window.require) {
@@ -875,6 +886,13 @@ export default function PomodoroTimer() {
                           }`}>
                             {session.completed ? '완료' : '미완료'}
                           </div>
+                          <button
+                            onClick={() => restartSession(session)}
+                            className="p-2 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all"
+                            title="같은 작업 다시 시작"
+                          >
+                            <RotateCcw className="w-5 h-5" />
+                          </button>
                           <button
                             onClick={() => deleteSession(session.id)}
                             className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all text-xl"
