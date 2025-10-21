@@ -63,7 +63,12 @@ function getSessionsFilePath() {
   return path.join(getDataPath(), 'dotime-sessions.json');
 }
 
-function getMemoFilePath() {
+function getMemosFilePath() {
+  return path.join(getDataPath(), 'dotime-memos.json');
+}
+
+// 기존 메모 파일 경로 (마이그레이션용)
+function getLegacyMemoFilePath() {
   return path.join(getDataPath(), 'dotime-memo.json');
 }
 
@@ -144,12 +149,12 @@ ipcMain.handle('set-window-size', async (event, width, height, minWidth, minHeig
   return { success: false };
 });
 
-// 메모 저장
-ipcMain.handle('save-memo', async (event, memoText) => {
+// 메모 저장 (배열)
+ipcMain.handle('save-memos', async (event, memos) => {
   try {
     ensureDataDirectory();
-    const filePath = getMemoFilePath();
-    fs.writeFileSync(filePath, JSON.stringify({ text: memoText }, null, 2), 'utf-8');
+    const filePath = getMemosFilePath();
+    fs.writeFileSync(filePath, JSON.stringify(memos, null, 2), 'utf-8');
     return { success: true, path: filePath };
   } catch (error) {
     console.error('메모 저장 실패:', error);
@@ -157,19 +162,40 @@ ipcMain.handle('save-memo', async (event, memoText) => {
   }
 });
 
-// 메모 로드
-ipcMain.handle('load-memo', async () => {
+// 메모 로드 (배열, 마이그레이션 지원)
+ipcMain.handle('load-memos', async () => {
   try {
-    const filePath = getMemoFilePath();
+    const filePath = getMemosFilePath();
+    const legacyFilePath = getLegacyMemoFilePath();
+
+    // 새 형식 파일이 있으면 그대로 로드
     if (fs.existsSync(filePath)) {
       const data = fs.readFileSync(filePath, 'utf-8');
-      const parsed = JSON.parse(data);
-      return { success: true, text: parsed.text || '' };
+      return { success: true, data: JSON.parse(data) };
     }
-    return { success: true, text: '' }; // 파일 없으면 빈 문자열
+
+    // 기존 단일 메모 파일이 있으면 마이그레이션
+    if (fs.existsSync(legacyFilePath)) {
+      const data = fs.readFileSync(legacyFilePath, 'utf-8');
+      const parsed = JSON.parse(data);
+      const text = parsed.text || '';
+
+      // 빈 메모는 빈 배열로, 내용이 있으면 첫 번째 메모로 변환
+      const memos = text.trim() ? [{
+        id: Date.now(),
+        content: text,
+        order: 0
+      }] : [];
+
+      // 새 형식으로 저장
+      fs.writeFileSync(filePath, JSON.stringify(memos, null, 2), 'utf-8');
+      return { success: true, data: memos };
+    }
+
+    return { success: true, data: [] }; // 파일 없으면 빈 배열
   } catch (error) {
     console.error('메모 로드 실패:', error);
-    return { success: false, error: error.message, text: '' };
+    return { success: false, error: error.message, data: [] };
   }
 });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Pause, RotateCcw, BarChart3, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { Clock, Play, Pause, RotateCcw, BarChart3, CheckCircle, XCircle, Trash2, ChevronUp, ChevronDown, Plus } from 'lucide-react';
 
 export default function PomodoroTimer() {
   const [activeTab, setActiveTab] = useState('timer');
@@ -14,7 +14,7 @@ export default function PomodoroTimer() {
   const [dataPath, setDataPath] = useState('');
   const [alwaysOnTop, setAlwaysOnTop] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
-  const [memo, setMemo] = useState('');
+  const [memos, setMemos] = useState([]);
   const [timerType, setTimerType] = useState('work'); // 'work' | 'break'
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [tags, setTags] = useState([]);
@@ -110,9 +110,9 @@ export default function PomodoroTimer() {
             setSessions(result.data);
           }
           // 메모 로드
-          const memoResult = await ipcRenderer.invoke('load-memo');
-          if (memoResult.success) {
-            setMemo(memoResult.text);
+          const memosResult = await ipcRenderer.invoke('load-memos');
+          if (memosResult.success && memosResult.data) {
+            setMemos(memosResult.data);
           }
           // 태그 로드
           const tagsResult = await ipcRenderer.invoke('load-tags');
@@ -153,19 +153,19 @@ export default function PomodoroTimer() {
 
   // 메모 변경 시 자동 저장
   useEffect(() => {
-    const saveMemo = async () => {
+    const saveMemos = async () => {
       try {
         // 초기 로드가 완료된 후에만 저장
         if (!isInitialLoad.current && typeof window !== 'undefined' && window.require) {
           const { ipcRenderer } = window.require('electron');
-          await ipcRenderer.invoke('save-memo', memo);
+          await ipcRenderer.invoke('save-memos', memos);
         }
       } catch (error) {
         console.error('메모 저장 실패:', error);
       }
     };
-    saveMemo();
-  }, [memo]);
+    saveMemos();
+  }, [memos]);
 
   // 태그 변경 시 자동 저장
   useEffect(() => {
@@ -357,6 +357,60 @@ export default function PomodoroTimer() {
     setIsRunning(false);
     // 타이머 탭으로 전환
     setActiveTab('timer');
+  };
+
+  // 메모 추가
+  const addMemo = () => {
+    const newMemo = {
+      id: Date.now(),
+      content: '',
+      order: memos.length
+    };
+    setMemos([...memos, newMemo]);
+  };
+
+  // 메모 삭제
+  const deleteMemo = (id) => {
+    const updatedMemos = memos
+      .filter(m => m.id !== id)
+      .map((m, index) => ({ ...m, order: index }));
+    setMemos(updatedMemos);
+  };
+
+  // 메모 내용 수정
+  const updateMemo = (id, content) => {
+    const updatedMemos = memos.map(m =>
+      m.id === id ? { ...m, content } : m
+    );
+    setMemos(updatedMemos);
+  };
+
+  // 메모 위로 이동
+  const moveMemoUp = (id) => {
+    const index = memos.findIndex(m => m.id === id);
+    if (index <= 0) return; // 이미 맨 위면 무시
+
+    const updatedMemos = [...memos];
+    [updatedMemos[index - 1], updatedMemos[index]] =
+      [updatedMemos[index], updatedMemos[index - 1]];
+
+    // order 재정렬
+    const reorderedMemos = updatedMemos.map((m, i) => ({ ...m, order: i }));
+    setMemos(reorderedMemos);
+  };
+
+  // 메모 아래로 이동
+  const moveMemoDown = (id) => {
+    const index = memos.findIndex(m => m.id === id);
+    if (index < 0 || index >= memos.length - 1) return; // 이미 맨 아래면 무시
+
+    const updatedMemos = [...memos];
+    [updatedMemos[index], updatedMemos[index + 1]] =
+      [updatedMemos[index + 1], updatedMemos[index]];
+
+    // order 재정렬
+    const reorderedMemos = updatedMemos.map((m, i) => ({ ...m, order: i }));
+    setMemos(reorderedMemos);
   };
 
   const toggleAlwaysOnTop = async () => {
@@ -745,14 +799,66 @@ export default function PomodoroTimer() {
             {/* Memo Section */}
             {!focusMode && (
               <div className="mt-6 pt-6 border-t-2 border-gray-100">
-                <h3 className="text-lg font-semibold text-gray-700 mb-3">📝 메모</h3>
-                <textarea
-                  value={memo}
-                  onChange={(e) => setMemo(e.target.value)}
-                  placeholder="오늘의 계획이나 메모를 자유롭게 작성하세요..."
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none resize-none text-gray-700"
-                  rows="6"
-                />
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-gray-700">📝 메모</h3>
+                  <button
+                    onClick={addMemo}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    새 메모
+                  </button>
+                </div>
+
+                {memos.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
+                    <p>메모를 추가해보세요</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {memos.map((memo, index) => (
+                      <div
+                        key={memo.id}
+                        className="border-2 border-gray-200 rounded-lg p-4 hover:border-purple-300 transition-all"
+                      >
+                        <textarea
+                          value={memo.content}
+                          onChange={(e) => updateMemo(memo.id, e.target.value)}
+                          placeholder="메모 내용을 입력하세요..."
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none resize-none text-gray-700 mb-2"
+                          rows="3"
+                        />
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => moveMemoUp(memo.id)}
+                              disabled={index === 0}
+                              className="p-1.5 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                              title="위로 이동"
+                            >
+                              <ChevronUp className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => moveMemoDown(memo.id)}
+                              disabled={index === memos.length - 1}
+                              className="p-1.5 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                              title="아래로 이동"
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => deleteMemo(memo.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="삭제"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <p className="text-xs text-gray-500 mt-2">💾 자동으로 저장됩니다</p>
               </div>
             )}
