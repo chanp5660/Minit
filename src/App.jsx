@@ -21,6 +21,7 @@ export default function PomodoroTimer() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'timeline'
   const [selectedSession, setSelectedSession] = useState(null); // 타임라인에서 선택된 세션
+  const [darkMode, setDarkMode] = useState(false); // 다크 모드
   const audioRef = useRef(null);
   const isInitialLoad = useRef(true);
   const taskTitleInputRef = useRef(null);
@@ -121,6 +122,11 @@ export default function PomodoroTimer() {
           if (tagsResult.success && tagsResult.data) {
             setTags(tagsResult.data);
           }
+          // 다크 모드 로드
+          const darkModeResult = await ipcRenderer.invoke('load-dark-mode');
+          if (darkModeResult.success) {
+            setDarkMode(darkModeResult.data);
+          }
           // 데이터 경로 가져오기
           const path = await ipcRenderer.invoke('get-data-path');
           setDataPath(path);
@@ -184,6 +190,22 @@ export default function PomodoroTimer() {
     };
     saveTags();
   }, [tags]);
+
+  // 다크 모드 변경 시 자동 저장
+  useEffect(() => {
+    const saveDarkMode = async () => {
+      try {
+        // 초기 로드가 완료된 후에만 저장
+        if (!isInitialLoad.current && typeof window !== 'undefined' && window.require) {
+          const { ipcRenderer } = window.require('electron');
+          await ipcRenderer.invoke('save-dark-mode', darkMode);
+        }
+      } catch (error) {
+        console.error('다크 모드 저장 실패:', error);
+      }
+    };
+    saveDarkMode();
+  }, [darkMode]);
 
   // 색상 테마 헬퍼 함수
   const getTimerColors = () => {
@@ -480,14 +502,20 @@ export default function PomodoroTimer() {
   const stats = getTodayStats();
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 ${focusMode ? 'p-2' : 'p-4'}`}>
+    <div className={`min-h-screen ${
+      darkMode
+        ? 'bg-gray-900'
+        : 'bg-gradient-to-br from-purple-50 to-blue-50'
+    } ${focusMode ? 'p-2' : 'p-4'}`}>
       <div className={`mx-auto ${focusMode ? 'max-w-md' : 'max-w-4xl'}`}>
         {/* Header */}
         <div className={`text-center relative ${focusMode ? 'mb-4 pt-4' : 'mb-8 pt-8'}`}>
-          <h1 className={`font-bold text-gray-800 ${focusMode ? 'text-xl mb-1' : 'text-4xl mb-2'}`}>
+          <h1 className={`font-bold ${
+            darkMode ? 'text-gray-100' : 'text-gray-800'
+          } ${focusMode ? 'text-xl mb-1' : 'text-4xl mb-2'}`}>
             ⏰ DoTime
           </h1>
-          {!focusMode && <p className="text-gray-600">작업 실행 시간을 기록하고 추적하세요</p>}
+          {!focusMode && <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>작업 실행 시간을 기록하고 추적하세요</p>}
           {/* Always on Top Button */}
           <button
             onClick={toggleAlwaysOnTop}
@@ -496,7 +524,9 @@ export default function PomodoroTimer() {
             } ${
               alwaysOnTop
                 ? 'bg-purple-500 text-white hover:bg-purple-600'
-                : 'bg-white text-gray-600 hover:bg-gray-100'
+                : darkMode
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-white text-gray-600 hover:bg-gray-100'
             }`}
             title={alwaysOnTop ? '최상단 고정 해제' : '최상단 고정'}
           >
@@ -510,23 +540,43 @@ export default function PomodoroTimer() {
             } ${
               focusMode
                 ? 'bg-orange-500 text-white hover:bg-orange-600'
-                : 'bg-white text-gray-600 hover:bg-gray-100'
+                : darkMode
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-white text-gray-600 hover:bg-gray-100'
             }`}
             title={focusMode ? '일반 모드로 전환' : '집중 모드로 전환'}
           >
             🎯
           </button>
+          {/* Dark Mode Toggle Button */}
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            className={`absolute top-0 rounded-lg transition-all shadow-md ${
+              focusMode ? 'right-24 p-2 text-sm' : 'right-32 p-3'
+            } ${
+              darkMode
+                ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                : 'bg-gray-700 text-white hover:bg-gray-800'
+            }`}
+            title={darkMode ? '라이트 모드로 전환' : '다크 모드로 전환'}
+          >
+            {darkMode ? '☀️' : '🌙'}
+          </button>
         </div>
 
         {/* Tab Navigation */}
         {!focusMode && (
-          <div className="flex gap-2 mb-6 bg-white rounded-lg p-1 shadow-sm">
+          <div className={`flex gap-2 mb-6 rounded-lg p-1 shadow-sm ${
+            darkMode ? 'bg-gray-800' : 'bg-white'
+          }`}>
             <button
               onClick={() => setActiveTab('timer')}
               className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
                 activeTab === 'timer'
                   ? `${timerType === 'work' ? 'bg-purple-500' : 'bg-blue-500'} text-white shadow-md`
-                  : 'text-gray-600 hover:bg-gray-100'
+                  : darkMode
+                    ? 'text-gray-300 hover:bg-gray-700'
+                    : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
               <Clock className="inline-block w-5 h-5 mr-2" />
@@ -537,7 +587,9 @@ export default function PomodoroTimer() {
               className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
                 activeTab === 'stats'
                   ? `${timerType === 'work' ? 'bg-purple-500' : 'bg-blue-500'} text-white shadow-md`
-                  : 'text-gray-600 hover:bg-gray-100'
+                  : darkMode
+                    ? 'text-gray-300 hover:bg-gray-700'
+                    : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
               <BarChart3 className="inline-block w-5 h-5 mr-2" />
@@ -548,18 +600,26 @@ export default function PomodoroTimer() {
 
         {/* Timer Tab */}
         {(activeTab === 'timer' || focusMode) && (
-          <div className={`bg-white rounded-2xl shadow-xl ${focusMode ? 'p-4' : 'p-8'}`}>
+          <div className={`rounded-2xl shadow-xl ${
+            darkMode ? 'bg-gray-800' : 'bg-white'
+          } ${focusMode ? 'p-4' : 'p-8'}`}>
             {/* Timer Type Toggle */}
             {!focusMode && (
               <div className="flex justify-center mb-6">
-                <div className={`inline-flex rounded-lg p-1 ${timerType === 'work' ? 'bg-purple-100' : 'bg-blue-100'}`}>
+                <div className={`inline-flex rounded-lg p-1 ${
+                  timerType === 'work'
+                    ? darkMode ? 'bg-purple-900' : 'bg-purple-100'
+                    : darkMode ? 'bg-blue-900' : 'bg-blue-100'
+                }`}>
                   <button
                     onClick={() => timerType === 'break' && toggleTimerType()}
                     disabled={isRunning}
                     className={`px-6 py-2 rounded-lg font-medium transition-all ${
                       timerType === 'work'
                         ? 'bg-purple-500 text-white shadow-md'
-                        : 'text-gray-600 hover:bg-gray-50'
+                        : darkMode
+                          ? 'text-gray-300 hover:bg-gray-700'
+                          : 'text-gray-600 hover:bg-gray-50'
                     } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     💼 작업
@@ -570,7 +630,9 @@ export default function PomodoroTimer() {
                     className={`px-6 py-2 rounded-lg font-medium transition-all ${
                       timerType === 'break'
                         ? 'bg-blue-500 text-white shadow-md'
-                        : 'text-gray-600 hover:bg-gray-50'
+                        : darkMode
+                          ? 'text-gray-300 hover:bg-gray-700'
+                          : 'text-gray-600 hover:bg-gray-50'
                     } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     ☕ 휴식
@@ -583,7 +645,9 @@ export default function PomodoroTimer() {
             {!focusMode && (
               timerType === 'work' ? (
                 <div className="mb-8">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className={`block text-sm font-medium mb-2 ${
+                    darkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
                     작업 제목
                   </label>
                   <input
@@ -592,13 +656,19 @@ export default function PomodoroTimer() {
                     value={taskTitle}
                     onChange={(e) => setTaskTitle(e.target.value)}
                     placeholder="예: #cpue baseline 코드 작성"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-lg"
+                    className={`w-full px-4 py-3 rounded-lg focus:border-purple-500 focus:outline-none text-lg ${
+                      darkMode
+                        ? 'bg-gray-700 border-2 border-gray-600 text-gray-100 placeholder-gray-400'
+                        : 'bg-white border-2 border-gray-200 text-gray-800'
+                    }`}
                     disabled={isRunning}
                   />
                   {/* 태그 버튼 섹션 */}
                   {tags.length > 0 && (
                     <div className="mt-3">
-                      <label className="block text-xs font-medium text-gray-500 mb-2">
+                      <label className={`block text-xs font-medium mb-2 ${
+                        darkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
                         📌 빠른 태그
                       </label>
                       <div className="flex gap-2 flex-wrap">
@@ -608,7 +678,11 @@ export default function PomodoroTimer() {
                             type="button"
                             onClick={() => addTagToTitle(tag)}
                             disabled={isRunning}
-                            className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium hover:bg-purple-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              darkMode
+                                ? 'bg-purple-900 text-purple-300 hover:bg-purple-800'
+                                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                            }`}
                           >
                             {tag}
                           </button>
@@ -619,9 +693,17 @@ export default function PomodoroTimer() {
                 </div>
               ) : (
                 <div className="mb-8">
-                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 text-center">
-                    <p className="text-blue-700 font-medium text-lg">☕ 휴식 중입니다</p>
-                    <p className="text-blue-600 text-sm mt-1">잠시 쉬면서 재충전하세요!</p>
+                  <div className={`border-2 rounded-lg p-4 text-center ${
+                    darkMode
+                      ? 'bg-blue-900 border-blue-700'
+                      : 'bg-blue-50 border-blue-200'
+                  }`}>
+                    <p className={`font-medium text-lg ${
+                      darkMode ? 'text-blue-300' : 'text-blue-700'
+                    }`}>☕ 휴식 중입니다</p>
+                    <p className={`text-sm mt-1 ${
+                      darkMode ? 'text-blue-400' : 'text-blue-600'
+                    }`}>잠시 쉬면서 재충전하세요!</p>
                   </div>
                 </div>
               )
@@ -664,7 +746,9 @@ export default function PomodoroTimer() {
                   <div className={`font-bold ${timerType === 'work' ? 'text-purple-600' : 'text-blue-600'} ${focusMode ? 'text-4xl mb-1' : 'text-6xl mb-2'}`}>
                     {formatTime(timeLeft)}
                   </div>
-                  <div className={`text-gray-500 ${focusMode ? 'text-sm' : 'text-lg'}`}>
+                  <div className={`${
+                    darkMode ? 'text-gray-400' : 'text-gray-500'
+                  } ${focusMode ? 'text-sm' : 'text-lg'}`}>
                     {selectedDuration}분 세션
                   </div>
                 </div>
@@ -718,7 +802,9 @@ export default function PomodoroTimer() {
             {/* Duration Presets */}
             {!focusMode && (
               <div className="mb-6">
-                <label className={`block text-sm font-medium mb-3 ${timerType === 'work' ? 'text-gray-700' : 'text-gray-700'}`}>
+                <label className={`block text-sm font-medium mb-3 ${
+                  darkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
                   시간 설정
                 </label>
                 <div className="flex gap-3 flex-wrap">
@@ -730,7 +816,9 @@ export default function PomodoroTimer() {
                       className={`px-6 py-2 rounded-lg font-medium transition-all ${
                         selectedDuration === mins
                           ? `${timerType === 'work' ? 'bg-purple-500' : 'bg-blue-500'} text-white shadow-md`
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : darkMode
+                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {mins}분
@@ -748,8 +836,12 @@ export default function PomodoroTimer() {
                   value={customMinutes}
                   onChange={(e) => setCustomMinutes(e.target.value)}
                   placeholder="사용자 정의 (분)"
-                  className={`flex-1 px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none ${
+                  className={`flex-1 px-4 py-2 border-2 rounded-lg focus:outline-none ${
                     timerType === 'work' ? 'focus:border-purple-500' : 'focus:border-blue-500'
+                  } ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400'
+                      : 'bg-white border-gray-200 text-gray-800'
                   }`}
                   disabled={isRunning}
                   min="1"
@@ -771,28 +863,50 @@ export default function PomodoroTimer() {
 
             {/* Today's Quick Stats */}
             {!focusMode && (
-              <div className="mt-8 pt-6 border-t-2 border-gray-100">
-                <h3 className="text-lg font-semibold text-gray-700 mb-3">오늘의 요약</h3>
+              <div className={`mt-8 pt-6 border-t-2 ${
+                darkMode ? 'border-gray-700' : 'border-gray-100'
+              }`}>
+                <h3 className={`text-lg font-semibold mb-3 ${
+                  darkMode ? 'text-gray-200' : 'text-gray-700'
+                }`}>오늘의 요약</h3>
                 <div className="grid grid-cols-3 gap-4">
                   <div className={`rounded-lg p-4 text-center ${
-                    timerType === 'work' ? 'bg-purple-50' : 'bg-blue-50'
+                    timerType === 'work'
+                      ? darkMode ? 'bg-purple-900' : 'bg-purple-50'
+                      : darkMode ? 'bg-blue-900' : 'bg-blue-50'
                   }`}>
                     <div className={`text-2xl font-bold ${
-                      timerType === 'work' ? 'text-purple-600' : 'text-blue-600'
+                      timerType === 'work'
+                        ? darkMode ? 'text-purple-400' : 'text-purple-600'
+                        : darkMode ? 'text-blue-400' : 'text-blue-600'
                     }`}>{stats.totalHours}h</div>
-                    <div className="text-sm text-gray-600">집중 시간</div>
+                    <div className={`text-sm ${
+                      darkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>집중 시간</div>
                   </div>
                   <div className={`rounded-lg p-4 text-center ${
-                    timerType === 'work' ? 'bg-blue-50' : 'bg-green-50'
+                    timerType === 'work'
+                      ? darkMode ? 'bg-blue-900' : 'bg-blue-50'
+                      : darkMode ? 'bg-green-900' : 'bg-green-50'
                   }`}>
                     <div className={`text-2xl font-bold ${
-                      timerType === 'work' ? 'text-blue-600' : 'text-green-600'
+                      timerType === 'work'
+                        ? darkMode ? 'text-blue-400' : 'text-blue-600'
+                        : darkMode ? 'text-green-400' : 'text-green-600'
                     }`}>{stats.sessionCount}</div>
-                    <div className="text-sm text-gray-600">총 세션</div>
+                    <div className={`text-sm ${
+                      darkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>총 세션</div>
                   </div>
-                  <div className="bg-green-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-green-600">{stats.completedCount}</div>
-                    <div className="text-sm text-gray-600">완료</div>
+                  <div className={`rounded-lg p-4 text-center ${
+                    darkMode ? 'bg-green-900' : 'bg-green-50'
+                  }`}>
+                    <div className={`text-2xl font-bold ${
+                      darkMode ? 'text-green-400' : 'text-green-600'
+                    }`}>{stats.completedCount}</div>
+                    <div className={`text-sm ${
+                      darkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>완료</div>
                   </div>
                 </div>
               </div>
@@ -800,9 +914,13 @@ export default function PomodoroTimer() {
 
             {/* Memo Section */}
             {!focusMode && (
-              <div className="mt-6 pt-6 border-t-2 border-gray-100">
+              <div className={`mt-6 pt-6 border-t-2 ${
+                darkMode ? 'border-gray-700' : 'border-gray-100'
+              }`}>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-semibold text-gray-700">📝 메모</h3>
+                  <h3 className={`text-lg font-semibold ${
+                    darkMode ? 'text-gray-200' : 'text-gray-700'
+                  }`}>📝 메모</h3>
                   <button
                     onClick={addMemo}
                     className="flex items-center gap-1 px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-all"
@@ -813,7 +931,11 @@ export default function PomodoroTimer() {
                 </div>
 
                 {memos.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
+                  <div className={`text-center py-8 border-2 border-dashed rounded-lg ${
+                    darkMode
+                      ? 'text-gray-500 border-gray-700'
+                      : 'text-gray-400 border-gray-200'
+                  }`}>
                     <p>메모를 추가해보세요</p>
                   </div>
                 ) : (
@@ -821,13 +943,21 @@ export default function PomodoroTimer() {
                     {memos.map((memo, index) => (
                       <div
                         key={memo.id}
-                        className="border-2 border-gray-200 rounded-lg p-4 hover:border-purple-300 transition-all"
+                        className={`border-2 rounded-lg p-4 transition-all ${
+                          darkMode
+                            ? 'border-gray-700 hover:border-purple-600'
+                            : 'border-gray-200 hover:border-purple-300'
+                        }`}
                       >
                         <textarea
                           value={memo.content}
                           onChange={(e) => updateMemo(memo.id, e.target.value)}
                           placeholder="메모 내용을 입력하세요..."
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none resize-none text-gray-700 mb-2"
+                          className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none resize-none mb-2 ${
+                            darkMode
+                              ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400'
+                              : 'bg-white border-gray-200 text-gray-700'
+                          }`}
                           rows="3"
                         />
                         <div className="flex items-center justify-between">
@@ -835,7 +965,11 @@ export default function PomodoroTimer() {
                             <button
                               onClick={() => moveMemoUp(memo.id)}
                               disabled={index === 0}
-                              className="p-1.5 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                              className={`p-1.5 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                                darkMode
+                                  ? 'text-gray-500 hover:text-purple-400 hover:bg-gray-600'
+                                  : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50'
+                              }`}
                               title="위로 이동"
                             >
                               <ChevronUp className="w-4 h-4" />
@@ -843,7 +977,11 @@ export default function PomodoroTimer() {
                             <button
                               onClick={() => moveMemoDown(memo.id)}
                               disabled={index === memos.length - 1}
-                              className="p-1.5 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                              className={`p-1.5 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                                darkMode
+                                  ? 'text-gray-500 hover:text-purple-400 hover:bg-gray-600'
+                                  : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50'
+                              }`}
                               title="아래로 이동"
                             >
                               <ChevronDown className="w-4 h-4" />
@@ -851,7 +989,11 @@ export default function PomodoroTimer() {
                           </div>
                           <button
                             onClick={() => deleteMemo(memo.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            className={`p-1.5 rounded-lg transition-all ${
+                              darkMode
+                                ? 'text-gray-500 hover:text-red-400 hover:bg-gray-600'
+                                : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                            }`}
                             title="삭제"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -861,7 +1003,9 @@ export default function PomodoroTimer() {
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-gray-500 mt-2">💾 자동으로 저장됩니다</p>
+                <p className={`text-xs mt-2 ${
+                  darkMode ? 'text-gray-500' : 'text-gray-500'
+                }`}>💾 자동으로 저장됩니다</p>
               </div>
             )}
           </div>
@@ -869,8 +1013,12 @@ export default function PomodoroTimer() {
 
         {/* Stats Tab */}
         {activeTab === 'stats' && (
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">작업 통계</h2>
+          <div className={`rounded-2xl shadow-xl p-8 ${
+            darkMode ? 'bg-gray-800' : 'bg-white'
+          }`}>
+            <h2 className={`text-2xl font-bold mb-6 ${
+              darkMode ? 'text-gray-100' : 'text-gray-800'
+            }`}>작업 통계</h2>
             
             {/* Overall Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -896,20 +1044,34 @@ export default function PomodoroTimer() {
 
             {/* Data Location Info */}
             {dataPath && (
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">📁 데이터 저장 위치</h3>
-                <p className="text-xs text-gray-600 font-mono break-all">{dataPath}\dotime-sessions.json</p>
-                <p className="text-xs text-gray-500 mt-1">프로그램 종료 후에도 기록이 유지됩니다</p>
+              <div className={`mb-6 p-4 rounded-lg border ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600'
+                  : 'bg-gray-50 border-gray-200'
+              }`}>
+                <h3 className={`text-sm font-semibold mb-2 ${
+                  darkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>📁 데이터 저장 위치</h3>
+                <p className={`text-xs font-mono break-all ${
+                  darkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>{dataPath}\dotime-sessions.json</p>
+                <p className={`text-xs mt-1 ${
+                  darkMode ? 'text-gray-500' : 'text-gray-500'
+                }`}>프로그램 종료 후에도 기록이 유지됩니다</p>
               </div>
             )}
 
             {/* Tags Section */}
             {tags.length > 0 && (
               <div className="mb-8">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                <h3 className={`text-xl font-semibold mb-4 ${
+                  darkMode ? 'text-gray-100' : 'text-gray-800'
+                }`}>
                   📌 태그
                   {selectedTags.length > 0 && (
-                    <span className="ml-2 text-sm font-normal text-gray-500">
+                    <span className={`ml-2 text-sm font-normal ${
+                      darkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
                       ({selectedTags.length}개 선택됨)
                     </span>
                   )}
@@ -924,7 +1086,9 @@ export default function PomodoroTimer() {
                         className={`px-4 py-2 rounded-full text-sm font-medium shadow-sm transition-all hover:shadow-md ${
                           isSelected
                             ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white scale-105'
-                            : 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 hover:from-purple-200 hover:to-pink-200'
+                            : darkMode
+                              ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                              : 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 hover:from-purple-200 hover:to-pink-200'
                         }`}
                       >
                         {tag}
@@ -935,7 +1099,11 @@ export default function PomodoroTimer() {
                 {selectedTags.length > 0 && (
                   <button
                     onClick={() => setSelectedTags([])}
-                    className="mt-3 text-sm text-gray-500 hover:text-gray-700 underline"
+                    className={`mt-3 text-sm underline ${
+                      darkMode
+                        ? 'text-gray-400 hover:text-gray-300'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
                   >
                     필터 초기화
                   </button>
@@ -946,22 +1114,30 @@ export default function PomodoroTimer() {
             {/* Session History */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">
+                <h3 className={`text-xl font-semibold ${
+                  darkMode ? 'text-gray-100' : 'text-gray-800'
+                }`}>
                   오늘의 작업 기록
                   {selectedTags.length > 0 && (
-                    <span className="ml-2 text-sm font-normal text-purple-600">
+                    <span className={`ml-2 text-sm font-normal ${
+                      darkMode ? 'text-purple-400' : 'text-purple-600'
+                    }`}>
                       (필터링됨: {selectedTags.map(t => `#${t}`).join(', ')})
                     </span>
                   )}
                 </h3>
                 {/* View Mode Toggle */}
-                <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
+                <div className={`flex gap-2 rounded-lg p-1 ${
+                  darkMode ? 'bg-gray-700' : 'bg-gray-100'
+                }`}>
                   <button
                     onClick={() => setViewMode('list')}
                     className={`px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                       viewMode === 'list'
                         ? 'bg-purple-500 text-white shadow-md'
-                        : 'text-gray-600 hover:bg-gray-200'
+                        : darkMode
+                          ? 'text-gray-300 hover:bg-gray-600'
+                          : 'text-gray-600 hover:bg-gray-200'
                     }`}
                   >
                     📋 목록
@@ -971,7 +1147,9 @@ export default function PomodoroTimer() {
                     className={`px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                       viewMode === 'timeline'
                         ? 'bg-purple-500 text-white shadow-md'
-                        : 'text-gray-600 hover:bg-gray-200'
+                        : darkMode
+                          ? 'text-gray-300 hover:bg-gray-600'
+                          : 'text-gray-600 hover:bg-gray-200'
                     }`}
                   >
                     📊 타임라인
@@ -982,7 +1160,9 @@ export default function PomodoroTimer() {
               {viewMode === 'list' && (
                 <>
                   {getTodaySessions().length === 0 ? (
-                    <div className="text-center py-12 text-gray-400">
+                    <div className={`text-center py-12 ${
+                      darkMode ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
                       <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
                       <p>
                         {selectedTags.length > 0
@@ -995,7 +1175,11 @@ export default function PomodoroTimer() {
                       {getTodaySessions().map(session => (
                         <div
                           key={session.id}
-                          className="border-2 border-gray-100 rounded-lg p-4 hover:border-purple-200 transition-all"
+                          className={`border-2 rounded-lg p-4 transition-all ${
+                            darkMode
+                              ? 'bg-gray-700 border-gray-600 hover:border-purple-500'
+                              : 'bg-white border-gray-100 hover:border-purple-200'
+                          }`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1">
@@ -1005,9 +1189,13 @@ export default function PomodoroTimer() {
                                 ) : (
                                   <XCircle className="w-5 h-5 text-red-500" />
                                 )}
-                                <h4 className="font-semibold text-gray-800">{session.title}</h4>
+                                <h4 className={`font-semibold ${
+                                  darkMode ? 'text-gray-100' : 'text-gray-800'
+                                }`}>{session.title}</h4>
                               </div>
-                              <div className="text-sm text-gray-500 ml-7">
+                              <div className={`text-sm ml-7 ${
+                                darkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
                                 {new Date(session.timestamp).toLocaleTimeString('ko-KR', {
                                   hour: '2-digit',
                                   minute: '2-digit'
@@ -1017,21 +1205,33 @@ export default function PomodoroTimer() {
                             <div className="flex items-center gap-2">
                               <div className={`px-3 py-1 rounded-full text-sm font-medium ${
                                 session.completed
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-red-100 text-red-700'
+                                  ? darkMode
+                                    ? 'bg-green-900 text-green-300'
+                                    : 'bg-green-100 text-green-700'
+                                  : darkMode
+                                    ? 'bg-red-900 text-red-300'
+                                    : 'bg-red-100 text-red-700'
                               }`}>
                                 {session.completed ? '완료' : '미완료'}
                               </div>
                               <button
                                 onClick={() => restartSession(session)}
-                                className="p-2 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all"
+                                className={`p-2 rounded-lg transition-all ${
+                                  darkMode
+                                    ? 'text-gray-500 hover:text-purple-400 hover:bg-gray-600'
+                                    : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50'
+                                }`}
                                 title="같은 작업 다시 시작"
                               >
                                 <RotateCcw className="w-5 h-5" />
                               </button>
                               <button
                                 onClick={() => deleteSession(session.id)}
-                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all text-xl"
+                                className={`p-2 rounded-lg transition-all text-xl ${
+                                  darkMode
+                                    ? 'text-gray-500 hover:text-red-400 hover:bg-gray-600'
+                                    : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                                }`}
                                 title="삭제"
                               >
                                 🗑️
@@ -1049,7 +1249,9 @@ export default function PomodoroTimer() {
               {viewMode === 'timeline' && (
                 <>
                   {getTodaySessions().length === 0 ? (
-                    <div className="text-center py-12 text-gray-400">
+                    <div className={`text-center py-12 ${
+                      darkMode ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
                       <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
                       <p>
                         {selectedTags.length > 0
@@ -1064,19 +1266,27 @@ export default function PomodoroTimer() {
                         {/* Time Labels */}
                         <div className="flex flex-col justify-between py-4 w-16 flex-shrink-0">
                           {Array.from({ length: 13 }, (_, i) => i * 2).map(hour => (
-                            <div key={hour} className="text-sm text-gray-500 font-medium text-right">
+                            <div key={hour} className={`text-sm font-medium text-right ${
+                              darkMode ? 'text-gray-400' : 'text-gray-500'
+                            }`}>
                               {hour.toString().padStart(2, '0')}:00
                             </div>
                           ))}
                         </div>
 
                         {/* Timeline Track */}
-                        <div className="flex-1 relative bg-gray-50 rounded-lg border-2 border-gray-200" style={{ minHeight: '600px' }}>
+                        <div className={`flex-1 relative rounded-lg border-2 ${
+                          darkMode
+                            ? 'bg-gray-700 border-gray-600'
+                            : 'bg-gray-50 border-gray-200'
+                        }`} style={{ minHeight: '600px' }}>
                           {/* Hour Grid Lines */}
                           {Array.from({ length: 13 }, (_, i) => i * 2).map(hour => (
                             <div
                               key={hour}
-                              className="absolute left-0 right-0 border-t border-gray-300"
+                              className={`absolute left-0 right-0 border-t ${
+                                darkMode ? 'border-gray-600' : 'border-gray-300'
+                              }`}
                               style={{ top: `${(hour / 24) * 100}%` }}
                             />
                           ))}
@@ -1141,9 +1351,15 @@ export default function PomodoroTimer() {
         {/* Confirmation Modal */}
         {showConfirmation && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
-              <h3 className="text-2xl font-bold text-gray-800 mb-4">세션 완료!</h3>
-              <p className="text-gray-600 mb-6">
+            <div className={`rounded-2xl p-8 max-w-md w-full shadow-2xl ${
+              darkMode ? 'bg-gray-800' : 'bg-white'
+            }`}>
+              <h3 className={`text-2xl font-bold mb-4 ${
+                darkMode ? 'text-gray-100' : 'text-gray-800'
+              }`}>세션 완료!</h3>
+              <p className={`mb-6 ${
+                darkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}>
                 <span className="font-semibold">"{taskTitle}"</span> 작업을 완료하셨나요?
               </p>
               <div className="flex gap-3">
@@ -1169,12 +1385,20 @@ export default function PomodoroTimer() {
         {/* Session Detail Modal */}
         {selectedSession && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl">
+            <div className={`rounded-2xl p-8 max-w-lg w-full shadow-2xl ${
+              darkMode ? 'bg-gray-800' : 'bg-white'
+            }`}>
               <div className="flex items-start justify-between mb-6">
-                <h3 className="text-2xl font-bold text-gray-800">세션 상세 정보</h3>
+                <h3 className={`text-2xl font-bold ${
+                  darkMode ? 'text-gray-100' : 'text-gray-800'
+                }`}>세션 상세 정보</h3>
                 <button
                   onClick={() => setSelectedSession(null)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className={`transition-colors ${
+                    darkMode
+                      ? 'text-gray-400 hover:text-gray-300'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
@@ -1184,15 +1408,21 @@ export default function PomodoroTimer() {
               <div className="space-y-4 mb-6">
                 {/* Title */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">작업 제목</label>
-                  <p className="text-lg font-semibold text-gray-800">{selectedSession.title}</p>
+                  <label className={`block text-sm font-medium mb-1 ${
+                    darkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>작업 제목</label>
+                  <p className={`text-lg font-semibold ${
+                    darkMode ? 'text-gray-100' : 'text-gray-800'
+                  }`}>{selectedSession.title}</p>
                 </div>
 
                 {/* Time Info */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">시작 시간</label>
-                    <p className="text-gray-800">
+                    <label className={`block text-sm font-medium mb-1 ${
+                      darkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>시작 시간</label>
+                    <p className={darkMode ? 'text-gray-200' : 'text-gray-800'}>
                       {new Date(selectedSession.timestamp).toLocaleTimeString('ko-KR', {
                         hour: '2-digit',
                         minute: '2-digit'
@@ -1200,8 +1430,10 @@ export default function PomodoroTimer() {
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">종료 시간</label>
-                    <p className="text-gray-800">
+                    <label className={`block text-sm font-medium mb-1 ${
+                      darkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>종료 시간</label>
+                    <p className={darkMode ? 'text-gray-200' : 'text-gray-800'}>
                       {selectedSession.endTime
                         ? new Date(selectedSession.endTime).toLocaleTimeString('ko-KR', {
                             hour: '2-digit',
@@ -1215,11 +1447,17 @@ export default function PomodoroTimer() {
                 {/* Duration and Status */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">소요 시간</label>
-                    <p className="text-gray-800 font-semibold">{selectedSession.duration}분</p>
+                    <label className={`block text-sm font-medium mb-1 ${
+                      darkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>소요 시간</label>
+                    <p className={`font-semibold ${
+                      darkMode ? 'text-gray-200' : 'text-gray-800'
+                    }`}>{selectedSession.duration}분</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">상태</label>
+                    <label className={`block text-sm font-medium mb-1 ${
+                      darkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>상태</label>
                     <div className="flex items-center gap-2">
                       {selectedSession.completed ? (
                         <>
@@ -1233,7 +1471,9 @@ export default function PomodoroTimer() {
                         </>
                       )}
                       {selectedSession.partial && (
-                        <span className="text-xs text-gray-500">(부분)</span>
+                        <span className={`text-xs ${
+                          darkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`}>(부분)</span>
                       )}
                     </div>
                   </div>
@@ -1242,12 +1482,18 @@ export default function PomodoroTimer() {
                 {/* Tags */}
                 {extractTags(selectedSession.title).length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-2">태그</label>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      darkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>태그</label>
                     <div className="flex gap-2 flex-wrap">
                       {extractTags(selectedSession.title).map((tag, index) => (
                         <span
                           key={index}
-                          className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium"
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            darkMode
+                              ? 'bg-purple-900 text-purple-300'
+                              : 'bg-purple-100 text-purple-700'
+                          }`}
                         >
                           #{tag}
                         </span>

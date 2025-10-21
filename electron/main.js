@@ -76,6 +76,10 @@ function getTagsFilePath() {
   return path.join(getDataPath(), 'dotime-tags.json');
 }
 
+function getDarkModeFilePath() {
+  return path.join(getDataPath(), 'dotime-darkmode.json');
+}
+
 // data 폴더 생성 (없으면)
 function ensureDataDirectory() {
   const dataPath = getDataPath();
@@ -224,5 +228,33 @@ ipcMain.handle('load-tags', async () => {
   } catch (error) {
     console.error('태그 로드 실패:', error);
     return { success: false, error: error.message, data: [] };
+  }
+});
+
+// 다크 모드 저장
+ipcMain.handle('save-dark-mode', async (event, darkMode) => {
+  try {
+    ensureDataDirectory();
+    const filePath = getDarkModeFilePath();
+    fs.writeFileSync(filePath, JSON.stringify({ darkMode }, null, 2), 'utf-8');
+    return { success: true };
+  } catch (error) {
+    console.error('다크 모드 저장 실패:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 다크 모드 로드
+ipcMain.handle('load-dark-mode', async () => {
+  try {
+    const filePath = getDarkModeFilePath();
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf-8');
+      return { success: true, data: JSON.parse(data).darkMode };
+    }
+    return { success: true, data: false }; // 기본값: 라이트 모드
+  } catch (error) {
+    console.error('다크 모드 로드 실패:', error);
+    return { success: false, error: error.message, data: false };
   }
 });
