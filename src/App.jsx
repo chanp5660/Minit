@@ -21,6 +21,7 @@ export default function PomodoroTimer() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'timeline'
   const [selectedSession, setSelectedSession] = useState(null); // 타임라인에서 선택된 세션
+  const [expandedTimeSlot, setExpandedTimeSlot] = useState(null); // 확장된 시간대 그룹
   const [darkMode, setDarkMode] = useState(false); // 다크 모드
   const audioRef = useRef(null);
   const isInitialLoad = useRef(true);
@@ -497,6 +498,114 @@ export default function PomodoroTimer() {
       sessionCount: todaySessions.length,
       completedCount
     };
+  };
+
+  // 시간대별 사용량 계산 로직
+  const getHourlyUsage = (sessions) => {
+    const hourlyData = [];
+    
+    // 0시부터 23시까지 24시간 순회
+    for (let hour = 0; hour < 24; hour++) {
+      const hourStart = new Date();
+      hourStart.setHours(hour, 0, 0, 0);
+      const hourEnd = new Date();
+      hourEnd.setHours(hour + 1, 0, 0, 0);
+      
+      // 해당 시간대에 포함되는 세션들 찾기
+      const hourSessions = sessions.filter(session => {
+        const sessionStart = new Date(session.timestamp);
+        const sessionEnd = session.endTime ? new Date(session.endTime) : new Date(sessionStart.getTime() + session.duration * 60000);
+        
+        // 세션이 해당 시간대와 겹치는지 확인
+        return sessionStart < hourEnd && sessionEnd > hourStart;
+      });
+      
+      // 해당 시간대에서 실제 사용된 시간 계산
+      let usedMinutes = 0;
+      hourSessions.forEach(session => {
+        const sessionStart = new Date(session.timestamp);
+        const sessionEnd = session.endTime ? new Date(session.endTime) : new Date(sessionStart.getTime() + session.duration * 60000);
+        
+        // 시간대와 세션의 교집합 계산
+        const overlapStart = new Date(Math.max(sessionStart.getTime(), hourStart.getTime()));
+        const overlapEnd = new Date(Math.min(sessionEnd.getTime(), hourEnd.getTime()));
+        
+        if (overlapStart < overlapEnd) {
+          usedMinutes += (overlapEnd.getTime() - overlapStart.getTime()) / 60000;
+        }
+      });
+      
+      const percentage = Math.min(usedMinutes / 60 * 100, 200); // 최대 200%까지 표시
+      
+      hourlyData.push({
+        hour,
+        usedMinutes: Math.round(usedMinutes),
+        percentage: Math.round(percentage),
+        sessions: hourSessions,
+        isEmpty: hourSessions.length === 0
+      });
+    }
+    
+    return hourlyData;
+  };
+
+  // 겹치는 세션들을 그룹으로 묶는 로직
+  const groupOverlappingSessions = (sessions) => {
+    if (sessions.length === 0) return [];
+
+    // 세션을 시작 시간순으로 정렬
+    const sortedSessions = [...sessions].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const groups = [];
+    const processed = new Set();
+
+    sortedSessions.forEach(session => {
+      if (processed.has(session.id)) return;
+
+      const sessionStart = new Date(session.timestamp);
+      const sessionEnd = session.endTime ? new Date(session.endTime) : new Date(sessionStart.getTime() + session.duration * 60000);
+      
+      // 이 세션과 겹치는 모든 세션 찾기
+      const overlappingSessions = sortedSessions.filter(otherSession => {
+        if (otherSession.id === session.id || processed.has(otherSession.id)) return false;
+        
+        const otherStart = new Date(otherSession.timestamp);
+        const otherEnd = otherSession.endTime 
+          ? new Date(otherSession.endTime) 
+          : new Date(otherStart.getTime() + otherSession.duration * 60000);
+        
+        return sessionStart < otherEnd && sessionEnd > otherStart;
+      });
+
+      if (overlappingSessions.length > 0) {
+        // 그룹 생성
+        const groupSessions = [session, ...overlappingSessions];
+        const groupStart = Math.min(...groupSessions.map(s => new Date(s.timestamp).getTime()));
+        const groupEnd = Math.max(...groupSessions.map(s => {
+          const start = new Date(s.timestamp);
+          return s.endTime ? new Date(s.endTime).getTime() : start.getTime() + s.duration * 60000;
+        }));
+
+        groups.push({
+          type: 'group',
+          sessions: groupSessions,
+          startTime: new Date(groupStart),
+          endTime: new Date(groupEnd),
+          duration: Math.ceil((groupEnd - groupStart) / 60000)
+        });
+
+        // 처리된 세션들 마킹
+        groupSessions.forEach(s => processed.add(s.id));
+      } else {
+        // 단일 세션
+        groups.push({
+          type: 'single',
+          session: session
+        });
+        processed.add(session.id);
+      }
+    });
+
+    return groups;
   };
 
   const stats = getTodayStats();
@@ -1152,7 +1261,7 @@ export default function PomodoroTimer() {
                           : 'text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    📊 타임라인
+                    📊 시간 현황
                   </button>
                 </div>
               </div>
@@ -1245,7 +1354,7 @@ export default function PomodoroTimer() {
                 </>
               )}
 
-              {/* Timeline View */}
+              {/* Hourly Usage View */}
               {viewMode === 'timeline' && (
                 <>
                   {getTodaySessions().length === 0 ? (
@@ -1260,132 +1369,80 @@ export default function PomodoroTimer() {
                       </p>
                     </div>
                   ) : (
-                    <div className="relative">
-                      {/* Timeline Container */}
-                      <div className="flex gap-4">
-                        {/* Time Labels */}
-                        <div className="flex flex-col justify-between py-4 w-16 flex-shrink-0">
-                          {Array.from({ length: 13 }, (_, i) => i * 2).map(hour => (
-                            <div key={hour} className={`text-sm font-medium text-right ${
-                              darkMode ? 'text-gray-400' : 'text-gray-500'
-                            }`}>
-                              {hour.toString().padStart(2, '0')}:00
-                            </div>
-                          ))}
-                        </div>
+                    <div className="space-y-2">
+                      {(() => {
+                        const sessions = getTodaySessions();
+                        const hourlyData = getHourlyUsage(sessions);
+                        
+                        return hourlyData.map((hourData, index) => {
+                          const getProgressBarColor = (percentage) => {
+                            if (percentage === 0) return 'bg-gray-300';
+                            if (percentage <= 50) return 'bg-blue-400';
+                            if (percentage <= 80) return 'bg-green-400';
+                            if (percentage <= 100) return 'bg-orange-400';
+                            return 'bg-red-500';
+                          };
+                          
+                          const getTextColor = (percentage) => {
+                            if (percentage === 0) return darkMode ? 'text-gray-500' : 'text-gray-400';
+                            if (percentage <= 50) return 'text-blue-600';
+                            if (percentage <= 80) return 'text-green-600';
+                            if (percentage <= 100) return 'text-orange-600';
+                            return 'text-red-600';
+                          };
 
-                        {/* Timeline Track with Multi-Column Layout */}
-                        <div className={`flex-1 relative rounded-lg border-2 ${
-                          darkMode
-                            ? 'bg-gray-700 border-gray-600'
-                            : 'bg-gray-50 border-gray-200'
-                        }`} style={{ minHeight: '600px' }}>
-                          {/* Hour Grid Lines */}
-                          {Array.from({ length: 13 }, (_, i) => i * 2).map(hour => (
+                          return (
                             <div
-                              key={hour}
-                              className={`absolute left-0 right-0 border-t ${
-                                darkMode ? 'border-gray-600' : 'border-gray-300'
+                              key={index}
+                              onClick={() => !hourData.isEmpty && setExpandedTimeSlot({
+                                type: 'group',
+                                sessions: hourData.sessions,
+                                startTime: new Date(new Date().setHours(hourData.hour, 0, 0, 0)),
+                                endTime: new Date(new Date().setHours(hourData.hour + 1, 0, 0, 0)),
+                                duration: 60
+                              })}
+                              className={`flex items-center gap-4 p-3 rounded-lg transition-all duration-200 ${
+                                hourData.isEmpty 
+                                  ? 'opacity-50 cursor-default' 
+                                  : 'cursor-pointer hover:bg-opacity-10 hover:bg-gray-500'
+                              } ${
+                                darkMode ? 'bg-gray-700' : 'bg-gray-50'
                               }`}
-                              style={{ top: `${(hour / 24) * 100}%` }}
-                            />
-                          ))}
-
-                          {/* Multi-Column Session Layout */}
-                          {(() => {
-                            const sessions = getTodaySessions();
-                            const columns = [];
-                            const sessionColumns = new Map();
-
-                            // 겹침 감지 및 컬럼 배치 알고리즘
-                            sessions.forEach(session => {
-                              const startDate = new Date(session.timestamp);
-                              const endDate = session.endTime ? new Date(session.endTime) : new Date(startDate.getTime() + session.duration * 60000);
-                              
-                              // 이 세션과 겹치는 세션들을 찾아서 사용 중인 컬럼들 확인
-                              const overlappingSessions = sessions.filter(otherSession => {
-                                if (otherSession.id === session.id) return false;
-                                
-                                const otherStartDate = new Date(otherSession.timestamp);
-                                const otherEndDate = otherSession.endTime 
-                                  ? new Date(otherSession.endTime) 
-                                  : new Date(otherStartDate.getTime() + otherSession.duration * 60000);
-                                
-                                return startDate < otherEndDate && endDate > otherStartDate;
-                              });
-
-                              // 겹치는 세션들이 사용 중인 컬럼들
-                              const usedColumns = new Set();
-                              overlappingSessions.forEach(overlappingSession => {
-                                const column = sessionColumns.get(overlappingSession.id);
-                                if (column !== undefined) {
-                                  usedColumns.add(column);
-                                }
-                              });
-
-                              // 사용 가능한 첫 번째 컬럼 찾기
-                              let assignedColumn = 0;
-                              while (usedColumns.has(assignedColumn)) {
-                                assignedColumn++;
-                              }
-
-                              sessionColumns.set(session.id, assignedColumn);
-                              
-                              // 컬럼 배열 확장
-                              while (columns.length <= assignedColumn) {
-                                columns.push([]);
-                              }
-                              columns[assignedColumn].push(session);
-                            });
-
-                            return columns.map((columnSessions, columnIndex) => (
-                              <div
-                                key={columnIndex}
-                                className="absolute top-0 bottom-0"
-                                style={{
-                                  left: `${(columnIndex / Math.max(columns.length, 1)) * 100}%`,
-                                  width: `${100 / Math.max(columns.length, 1)}%`,
-                                  paddingLeft: columnIndex > 0 ? '2px' : '8px',
-                                  paddingRight: columnIndex < columns.length - 1 ? '2px' : '8px'
-                                }}
-                              >
-                                {columnSessions.map(session => {
-                                  const startDate = new Date(session.timestamp);
-                                  const endDate = session.endTime ? new Date(session.endTime) : new Date(startDate.getTime() + session.duration * 60000);
-
-                                  // Calculate position and height
-                                  const startHour = startDate.getHours() + startDate.getMinutes() / 60;
-                                  const durationHours = session.duration / 60;
-                                  const topPercent = (startHour / 24) * 100;
-                                  const heightPercent = (durationHours / 24) * 100;
-
-                                  return (
-                                    <div
-                                      key={session.id}
-                                      onClick={() => setSelectedSession(session)}
-                                      className={`absolute left-0 right-0 rounded-lg cursor-pointer transition-all hover:opacity-90 hover:scale-105 ${
-                                        session.completed
-                                          ? 'bg-gradient-to-r from-green-500 to-green-600'
-                                          : 'bg-gradient-to-r from-red-500 to-red-600'
-                                      } ${session.partial ? 'border-2 border-dashed border-white' : ''}`}
-                                      style={{
-                                        top: `${topPercent}%`,
-                                        height: `${Math.max(heightPercent, 2)}%`
-                                      }}
-                                      title={`${session.title} - ${startDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`}
-                                    >
-                                      <div className="p-2 text-white text-sm font-medium truncate">
-                                        <div className="truncate">{session.title}</div>
-                                        <div className="text-xs opacity-90">{session.duration}분</div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                            >
+                              {/* 시간 레이블 */}
+                              <div className="w-16 text-sm font-medium text-right">
+                                {hourData.hour.toString().padStart(2, '0')}:00
                               </div>
-                            ));
-                          })()}
-                        </div>
-                      </div>
+                              
+                              {/* 프로그레스 바 */}
+                              <div className="flex-1">
+                                <div className={`w-full h-6 rounded-full overflow-hidden ${
+                                  darkMode ? 'bg-gray-600' : 'bg-gray-200'
+                                }`}>
+                                  <div 
+                                    className={`h-full transition-all duration-500 ${getProgressBarColor(hourData.percentage)}`}
+                                    style={{ width: `${Math.min(hourData.percentage, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                              
+                              {/* 퍼센트 및 세션 개수 */}
+                              <div className="flex items-center gap-3">
+                                <span className={`text-sm font-medium ${getTextColor(hourData.percentage)}`}>
+                                  {hourData.percentage}%
+                                </span>
+                                {!hourData.isEmpty && (
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    darkMode ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-700'
+                                  }`}>
+                                    {hourData.sessions.length}개
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   )}
                 </>
@@ -1422,6 +1479,144 @@ export default function PomodoroTimer() {
                 >
                   <XCircle className="w-5 h-5" />
                   못했어요
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Time Slot Expansion Modal */}
+        {expandedTimeSlot && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
+            <div className={`rounded-2xl p-8 max-w-2xl w-full shadow-2xl transform transition-all duration-300 animate-slideUp ${
+              darkMode ? 'bg-gray-800' : 'bg-white'
+            }`}>
+              <div className="flex items-start justify-between mb-6">
+                <h3 className={`text-2xl font-bold ${
+                  darkMode ? 'text-gray-100' : 'text-gray-800'
+                }`}>
+                  겹치는 세션 상세보기
+                  <span className={`ml-2 text-lg ${
+                    darkMode ? 'text-purple-400' : 'text-purple-600'
+                  }`}>
+                    ({expandedTimeSlot.sessions.length}개 세션)
+                  </span>
+                </h3>
+                <button
+                  onClick={() => setExpandedTimeSlot(null)}
+                  className={`transition-colors ${
+                    darkMode
+                      ? 'text-gray-400 hover:text-gray-300'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Time Range Info */}
+              <div className={`mb-6 p-4 rounded-lg ${
+                darkMode ? 'bg-purple-900' : 'bg-purple-50'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🕐</span>
+                  <span className={`font-semibold ${
+                    darkMode ? 'text-purple-300' : 'text-purple-700'
+                  }`}>
+                    시간 범위
+                  </span>
+                </div>
+                <p className={`text-sm ${
+                  darkMode ? 'text-purple-200' : 'text-purple-600'
+                }`}>
+                  {expandedTimeSlot.startTime.toLocaleTimeString('ko-KR', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })} - {expandedTimeSlot.endTime.toLocaleTimeString('ko-KR', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })} ({expandedTimeSlot.duration}분)
+                </p>
+              </div>
+
+              {/* Sessions List */}
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {expandedTimeSlot.sessions.map((session, index) => (
+                  <div
+                    key={session.id}
+                    onClick={() => {
+                      setSelectedSession(session);
+                      setExpandedTimeSlot(null);
+                    }}
+                    className={`border-2 rounded-lg p-4 cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 ${
+                      darkMode
+                        ? 'bg-gray-700 border-gray-600 hover:border-purple-500'
+                        : 'bg-white border-gray-200 hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          {session.completed ? (
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                          ) : (
+                            <XCircle className="w-5 h-5 text-red-500" />
+                          )}
+                          <h4 className={`font-semibold ${
+                            darkMode ? 'text-gray-100' : 'text-gray-800'
+                          }`}>{session.title}</h4>
+                        </div>
+                        <div className={`text-sm ml-7 ${
+                          darkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
+                          {new Date(session.timestamp).toLocaleTimeString('ko-KR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })} - {session.duration}분 {session.partial ? '(부분 완료)' : '세션'}
+                        </div>
+                        {/* Tags */}
+                        {extractTags(session.title).length > 0 && (
+                          <div className="flex gap-2 flex-wrap mt-2 ml-7">
+                            {extractTags(session.title).map((tag, tagIndex) => (
+                              <span
+                                key={tagIndex}
+                                className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  darkMode
+                                    ? 'bg-purple-900 text-purple-300'
+                                    : 'bg-purple-100 text-purple-700'
+                                }`}
+                              >
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          session.completed
+                            ? darkMode
+                              ? 'bg-green-900 text-green-300'
+                              : 'bg-green-100 text-green-700'
+                            : darkMode
+                              ? 'bg-red-900 text-red-300'
+                              : 'bg-red-100 text-red-700'
+                        }`}>
+                          {session.completed ? '완료' : '미완료'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setExpandedTimeSlot(null)}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-xl font-semibold transition-all"
+                >
+                  닫기
                 </button>
               </div>
             </div>
