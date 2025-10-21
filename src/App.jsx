@@ -19,6 +19,8 @@ export default function PomodoroTimer() {
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [tags, setTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'timeline'
+  const [selectedSession, setSelectedSession] = useState(null); // 타임라인에서 선택된 세션
   const audioRef = useRef(null);
   const isInitialLoad = useRef(true);
   const taskTitleInputRef = useRef(null);
@@ -943,74 +945,194 @@ export default function PomodoroTimer() {
 
             {/* Session History */}
             <div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                오늘의 작업 기록
-                {selectedTags.length > 0 && (
-                  <span className="ml-2 text-sm font-normal text-purple-600">
-                    (필터링됨: {selectedTags.map(t => `#${t}`).join(', ')})
-                  </span>
-                )}
-              </h3>
-              {getTodaySessions().length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>
-                    {selectedTags.length > 0
-                      ? '선택한 태그와 일치하는 작업 기록이 없습니다'
-                      : '아직 기록된 세션이 없습니다'}
-                  </p>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  오늘의 작업 기록
+                  {selectedTags.length > 0 && (
+                    <span className="ml-2 text-sm font-normal text-purple-600">
+                      (필터링됨: {selectedTags.map(t => `#${t}`).join(', ')})
+                    </span>
+                  )}
+                </h3>
+                {/* View Mode Toggle */}
+                <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                      viewMode === 'list'
+                        ? 'bg-purple-500 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    📋 목록
+                  </button>
+                  <button
+                    onClick={() => setViewMode('timeline')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                      viewMode === 'timeline'
+                        ? 'bg-purple-500 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    📊 타임라인
+                  </button>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {getTodaySessions().map(session => (
-                    <div
-                      key={session.id}
-                      className="border-2 border-gray-100 rounded-lg p-4 hover:border-purple-200 transition-all"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            {session.completed ? (
-                              <CheckCircle className="w-5 h-5 text-green-500" />
-                            ) : (
-                              <XCircle className="w-5 h-5 text-red-500" />
-                            )}
-                            <h4 className="font-semibold text-gray-800">{session.title}</h4>
-                          </div>
-                          <div className="text-sm text-gray-500 ml-7">
-                            {new Date(session.timestamp).toLocaleTimeString('ko-KR', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })} - {session.duration}분 {session.partial ? '(부분 완료)' : '세션'}
+              </div>
+              {/* List View */}
+              {viewMode === 'list' && (
+                <>
+                  {getTodaySessions().length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                      <p>
+                        {selectedTags.length > 0
+                          ? '선택한 태그와 일치하는 작업 기록이 없습니다'
+                          : '아직 기록된 세션이 없습니다'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {getTodaySessions().map(session => (
+                        <div
+                          key={session.id}
+                          className="border-2 border-gray-100 rounded-lg p-4 hover:border-purple-200 transition-all"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                {session.completed ? (
+                                  <CheckCircle className="w-5 h-5 text-green-500" />
+                                ) : (
+                                  <XCircle className="w-5 h-5 text-red-500" />
+                                )}
+                                <h4 className="font-semibold text-gray-800">{session.title}</h4>
+                              </div>
+                              <div className="text-sm text-gray-500 ml-7">
+                                {new Date(session.timestamp).toLocaleTimeString('ko-KR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })} - {session.duration}분 {session.partial ? '(부분 완료)' : '세션'}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                session.completed
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-red-100 text-red-700'
+                              }`}>
+                                {session.completed ? '완료' : '미완료'}
+                              </div>
+                              <button
+                                onClick={() => restartSession(session)}
+                                className="p-2 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all"
+                                title="같은 작업 다시 시작"
+                              >
+                                <RotateCcw className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => deleteSession(session.id)}
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all text-xl"
+                                title="삭제"
+                              >
+                                🗑️
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            session.completed
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {session.completed ? '완료' : '미완료'}
-                          </div>
-                          <button
-                            onClick={() => restartSession(session)}
-                            className="p-2 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-all"
-                            title="같은 작업 다시 시작"
-                          >
-                            <RotateCcw className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => deleteSession(session.id)}
-                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all text-xl"
-                            title="삭제"
-                          >
-                            🗑️
-                          </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Timeline View */}
+              {viewMode === 'timeline' && (
+                <>
+                  {getTodaySessions().length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                      <p>
+                        {selectedTags.length > 0
+                          ? '선택한 태그와 일치하는 작업 기록이 없습니다'
+                          : '아직 기록된 세션이 없습니다'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      {/* Timeline Container */}
+                      <div className="flex gap-4">
+                        {/* Time Labels */}
+                        <div className="flex flex-col justify-between py-4 w-16 flex-shrink-0">
+                          {Array.from({ length: 13 }, (_, i) => i * 2).map(hour => (
+                            <div key={hour} className="text-sm text-gray-500 font-medium text-right">
+                              {hour.toString().padStart(2, '0')}:00
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Timeline Track */}
+                        <div className="flex-1 relative bg-gray-50 rounded-lg border-2 border-gray-200" style={{ minHeight: '600px' }}>
+                          {/* Hour Grid Lines */}
+                          {Array.from({ length: 13 }, (_, i) => i * 2).map(hour => (
+                            <div
+                              key={hour}
+                              className="absolute left-0 right-0 border-t border-gray-300"
+                              style={{ top: `${(hour / 24) * 100}%` }}
+                            />
+                          ))}
+
+                          {/* Session Bars */}
+                          {getTodaySessions().map(session => {
+                            const startDate = new Date(session.timestamp);
+                            const endDate = session.endTime ? new Date(session.endTime) : new Date(startDate.getTime() + session.duration * 60000);
+
+                            // Calculate position and height
+                            const startHour = startDate.getHours() + startDate.getMinutes() / 60;
+                            const durationHours = session.duration / 60;
+                            const topPercent = (startHour / 24) * 100;
+                            const heightPercent = (durationHours / 24) * 100;
+
+                            // Check if this session overlaps with any other session
+                            const hasOverlap = getTodaySessions().some(otherSession => {
+                              if (otherSession.id === session.id) return false;
+
+                              const otherStartDate = new Date(otherSession.timestamp);
+                              const otherEndDate = otherSession.endTime
+                                ? new Date(otherSession.endTime)
+                                : new Date(otherStartDate.getTime() + otherSession.duration * 60000);
+
+                              // Check if sessions overlap
+                              return startDate < otherEndDate && endDate > otherStartDate;
+                            });
+
+                            return (
+                              <div
+                                key={session.id}
+                                onClick={() => setSelectedSession(session)}
+                                className={`absolute left-2 right-2 rounded-lg cursor-pointer transition-all hover:opacity-90 hover:scale-105 ${
+                                  session.completed
+                                    ? 'bg-gradient-to-r from-green-500 to-green-600'
+                                    : 'bg-gradient-to-r from-red-500 to-red-600'
+                                } ${session.partial ? 'border-2 border-dashed border-white' : ''}`}
+                                style={{
+                                  top: `${topPercent}%`,
+                                  height: `${Math.max(heightPercent, 2)}%`,
+                                  opacity: hasOverlap ? 0.7 : 1.0
+                                }}
+                                title={`${session.title} - ${startDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`}
+                              >
+                                <div className="p-2 text-white text-sm font-medium truncate">
+                                  <div className="truncate">{session.title}</div>
+                                  <div className="text-xs opacity-90">{session.duration}분</div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -1038,6 +1160,126 @@ export default function PomodoroTimer() {
                 >
                   <XCircle className="w-5 h-5" />
                   못했어요
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Session Detail Modal */}
+        {selectedSession && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl">
+              <div className="flex items-start justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-800">세션 상세 정보</h3>
+                <button
+                  onClick={() => setSelectedSession(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Session Info */}
+              <div className="space-y-4 mb-6">
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">작업 제목</label>
+                  <p className="text-lg font-semibold text-gray-800">{selectedSession.title}</p>
+                </div>
+
+                {/* Time Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">시작 시간</label>
+                    <p className="text-gray-800">
+                      {new Date(selectedSession.timestamp).toLocaleTimeString('ko-KR', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">종료 시간</label>
+                    <p className="text-gray-800">
+                      {selectedSession.endTime
+                        ? new Date(selectedSession.endTime).toLocaleTimeString('ko-KR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : '-'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Duration and Status */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">소요 시간</label>
+                    <p className="text-gray-800 font-semibold">{selectedSession.duration}분</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-1">상태</label>
+                    <div className="flex items-center gap-2">
+                      {selectedSession.completed ? (
+                        <>
+                          <CheckCircle className="w-5 h-5 text-green-500" />
+                          <span className="text-green-600 font-semibold">완료</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-5 h-5 text-red-500" />
+                          <span className="text-red-600 font-semibold">미완료</span>
+                        </>
+                      )}
+                      {selectedSession.partial && (
+                        <span className="text-xs text-gray-500">(부분)</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tags */}
+                {extractTags(selectedSession.title).length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 mb-2">태그</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {extractTags(selectedSession.title).map((tag, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    restartSession(selectedSession);
+                    setSelectedSession(null);
+                  }}
+                  className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  다시 시작
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm('이 세션을 삭제하시겠습니까?')) {
+                      deleteSession(selectedSession.id);
+                      setSelectedSession(null);
+                    }
+                  }}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  삭제
                 </button>
               </div>
             </div>
