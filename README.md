@@ -116,6 +116,20 @@ npm run electron:build
 
 > **참고**: 스크린샷은 개발 중이며, 실제 앱의 모습과 다를 수 있습니다.
 
+- 타이머 화면
+![다크모드-타이머1](https://i.imgur.com/RWQsEH8.png)
+![다크모드-타이머2](https://i.imgur.com/di17ODr.png)
+
+- 통계화면
+![라이트모드-통계1](https://i.imgur.com/FQfD4m1.png)
+![라이트모드-통계2](https://i.imgur.com/Mpr3zY7.png)
+
+- 시간현황
+![라이트모드-시간현황](https://i.imgur.com/RpgCkfV.png)
+
+- Focus Mode
+![다크모드-Focus Mode](https://i.imgur.com/GHJNYO5.png)
+
 ### 주요 화면
 - **타이머 화면**: 원형 프로그레스 바와 직관적인 컨트롤
 - **통계 화면**: 오늘의 작업 현황과 타임라인 뷰
