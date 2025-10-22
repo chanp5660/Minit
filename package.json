@@ -1,7 +1,7 @@
 {
-  "name": "dotime",
+  "name": "minit",
   "version": "1.0.0",
-  "description": "DoTime - 실행 시간 기록",
+  "description": "Minit - minute와 mini의 합성, 타이머",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,7 @@
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "vite build && electron-builder"
   },
-  "keywords": ["dotime", "timer", "productivity", "time-tracking"],
+  "keywords": ["minit", "timer", "productivity", "time-tracking"],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -27,8 +27,8 @@
     "lucide-react": "^0.294.0"
   },
   "build": {
-    "appId": "com.dotime.app",
-    "productName": "DoTime",
+    "appId": "com.minit.app",
+    "productName": "Minit",
     "directories": {
       "output": "dist-electron"
     },

@@ -1,4 +1,4 @@
-# ⏰ DoTime
+# ⏰ Minit
 
 Windows 독립 실행 프로그램으로 만든 작업 실행 시간 기록 앱
 
@@ -65,8 +65,8 @@ npm run electron:build
 **⚠️ 주의사항**: `npm run electron:build` 명령어에서 오류가 발생하면 cmd를 관리자 권한으로 실행하여 명령어를 실행해야 합니다.
 
 빌드가 완료되면 `dist-electron` 폴더에 다음 파일이 생성됩니다:
-- `DoTime Setup 1.0.0.exe` - 설치 프로그램
-- `DoTime 1.0.0.exe` - 휴대용 실행 파일
+- `Minit Setup 1.0.0.exe` - 설치 프로그램
+- `Minit 1.0.0.exe` - 휴대용 실행 파일
 
 ## 사용 방법
 
@@ -104,10 +104,10 @@ npm run electron:build
 
 ```
 {실행파일 폴더}/data/
-├── dotime-sessions.json   # 작업 세션 기록
-├── dotime-memos.json       # 메모 내용
-├── dotime-tags.json        # 태그 목록
-└── dotime-darkmode.json    # 다크 모드 설정
+├── minit-sessions.json   # 작업 세션 기록
+├── minit-memos.json       # 메모 내용
+├── minit-tags.json        # 태그 목록
+└── minit-darkmode.json    # 다크 모드 설정
 ```
 
 통계 탭에서 정확한 데이터 저장 위치를 확인할 수 있습니다.
@@ -147,7 +147,7 @@ npm run electron:build
 ## 프로젝트 구조
 
 ```
-dotime/
+minit/
 ├── src/
 │   └── App.jsx          # 메인 React 컴포넌트
 ├── electron/

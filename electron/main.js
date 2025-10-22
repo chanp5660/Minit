@@ -16,7 +16,7 @@ function createWindow() {
       devTools: true
     },
     icon: path.join(__dirname, '../build/icon.png'),
-    title: '⏰ DoTime'
+    title: '⏰ Minit'
   });
 
   // 개발 모드와 프로덕션 모드 구분
@@ -60,24 +60,24 @@ function getDataPath() {
 }
 
 function getSessionsFilePath() {
-  return path.join(getDataPath(), 'dotime-sessions.json');
+  return path.join(getDataPath(), 'minit-sessions.json');
 }
 
 function getMemosFilePath() {
-  return path.join(getDataPath(), 'dotime-memos.json');
+  return path.join(getDataPath(), 'minit-memos.json');
 }
 
 // 기존 메모 파일 경로 (마이그레이션용)
 function getLegacyMemoFilePath() {
-  return path.join(getDataPath(), 'dotime-memo.json');
+  return path.join(getDataPath(), 'minit-memo.json');
 }
 
 function getTagsFilePath() {
-  return path.join(getDataPath(), 'dotime-tags.json');
+  return path.join(getDataPath(), 'minit-tags.json');
 }
 
 function getDarkModeFilePath() {
-  return path.join(getDataPath(), 'dotime-darkmode.json');
+  return path.join(getDataPath(), 'minit-darkmode.json');
 }
 
 // data 폴더 생성 (없으면)

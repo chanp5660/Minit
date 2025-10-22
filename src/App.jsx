@@ -45,7 +45,7 @@ export default function PomodoroTimer() {
         body: body,
         icon: '🍅',
         badge: '🍅',
-        tag: 'dotime-timer'
+        tag: 'minit-timer'
       });
 
       notification.onclick = () => {
@@ -622,7 +622,7 @@ export default function PomodoroTimer() {
           <h1 className={`font-bold ${
             darkMode ? 'text-gray-100' : 'text-gray-800'
           } ${focusMode ? 'text-xl mb-1' : 'text-4xl mb-2'}`}>
-            {focusMode ? (taskTitle.trim() || '작업 제목 없음') : '⏰ DoTime'}
+            {focusMode ? (taskTitle.trim() || '작업 제목 없음') : '⏰ Minit'}
           </h1>
           {!focusMode && <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>작업 실행 시간을 기록하고 추적하세요</p>}
           {/* Always on Top Button */}
