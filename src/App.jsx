@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Pause, RotateCcw, BarChart3, CheckCircle, XCircle, Trash2, ChevronUp, ChevronDown, Plus } from 'lucide-react';
+import { Clock, Play, Pause, RotateCcw, BarChart3, CheckCircle, XCircle, Trash2, ChevronUp, ChevronDown, Plus, ArrowRight, Github } from 'lucide-react';
 
 export default function PomodoroTimer() {
   const [activeTab, setActiveTab] = useState('timer');
@@ -23,6 +23,9 @@ export default function PomodoroTimer() {
   const [selectedSession, setSelectedSession] = useState(null); // 타임라인에서 선택된 세션
   const [expandedTimeSlot, setExpandedTimeSlot] = useState(null); // 확장된 시간대 그룹
   const [darkMode, setDarkMode] = useState(false); // 다크 모드
+  const [draggedMemo, setDraggedMemo] = useState(null); // 드래그 중인 메모
+  const [showPartialSaveModal, setShowPartialSaveModal] = useState(false); // 부분 저장 모달
+  const [partialSessionData, setPartialSessionData] = useState(null); // 부분 저장 데이터
   const audioRef = useRef(null);
   const isInitialLoad = useRef(true);
   const taskTitleInputRef = useRef(null);
@@ -313,7 +316,7 @@ export default function PomodoroTimer() {
     }
   };
 
-  const handleTaskCompletion = (completed) => {
+  const handleTaskCompletion = (completed, inProgress = false) => {
     // 제목에서 태그 추출 및 저장
     const extractedTags = extractTags(taskTitle);
     extractedTags.forEach(tag => saveTag(tag));
@@ -323,6 +326,7 @@ export default function PomodoroTimer() {
       title: taskTitle,
       duration: selectedDuration,
       completed: completed,
+      inProgress: inProgress,
       timestamp: currentSessionStart || new Date(),
       endTime: new Date(),
       partial: false
@@ -351,22 +355,39 @@ export default function PomodoroTimer() {
     const extractedTags = extractTags(taskTitle);
     extractedTags.forEach(tag => saveTag(tag));
 
-    const newSession = {
-      id: Date.now(),
+    // 부분 저장 데이터 준비
+    const sessionData = {
       title: taskTitle,
       duration: elapsedMinutes,
-      completed: true,
       timestamp: currentSessionStart || new Date(),
-      endTime: new Date(),
+      endTime: new Date()
+    };
+
+    setPartialSessionData(sessionData);
+    setShowPartialSaveModal(true);
+  };
+
+  const handlePartialSaveCompletion = (completed, inProgress = false) => {
+    if (!partialSessionData) return;
+
+    const newSession = {
+      id: Date.now(),
+      title: partialSessionData.title,
+      duration: partialSessionData.duration,
+      completed: completed,
+      inProgress: inProgress,
+      timestamp: partialSessionData.timestamp,
+      endTime: partialSessionData.endTime,
       partial: true
     };
 
     setSessions([newSession, ...sessions]);
+    setShowPartialSaveModal(false);
+    setPartialSessionData(null);
     setTaskTitle('');
     setTimeLeft(selectedDuration * 60);
     setIsRunning(false);
     setCurrentSessionStart(null);
-    alert(`${elapsedMinutes}분이 기록되었습니다!`);
   };
 
   const deleteSession = (sessionId) => {
@@ -382,6 +403,22 @@ export default function PomodoroTimer() {
     setIsRunning(false);
     // 타이머 탭으로 전환
     setActiveTab('timer');
+  };
+
+  // 메모를 작업 제목으로 복사
+  const copyMemoToTask = (memoContent) => {
+    if (!memoContent.trim()) {
+      alert('메모 내용이 비어있습니다!');
+      return;
+    }
+    setTaskTitle(memoContent);
+    setActiveTab('timer');
+    // 입력 필드에 포커스
+    setTimeout(() => {
+      if (taskTitleInputRef.current) {
+        taskTitleInputRef.current.focus();
+      }
+    }, 100);
   };
 
   // 메모 추가
@@ -438,6 +475,41 @@ export default function PomodoroTimer() {
     setMemos(reorderedMemos);
   };
 
+  // 드래그 시작
+  const handleDragStart = (e, memo) => {
+    setDraggedMemo(memo);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  // 드래그 오버
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  // 드롭 처리
+  const handleDrop = (e, targetMemo) => {
+    e.preventDefault();
+    if (!draggedMemo || draggedMemo.id === targetMemo.id) return;
+
+    const draggedIndex = memos.findIndex(m => m.id === draggedMemo.id);
+    const targetIndex = memos.findIndex(m => m.id === targetMemo.id);
+
+    const updatedMemos = [...memos];
+    const [removed] = updatedMemos.splice(draggedIndex, 1);
+    updatedMemos.splice(targetIndex, 0, removed);
+
+    // order 재정렬
+    const reorderedMemos = updatedMemos.map((m, i) => ({ ...m, order: i }));
+    setMemos(reorderedMemos);
+    setDraggedMemo(null);
+  };
+
+  // 드래그 종료
+  const handleDragEnd = () => {
+    setDraggedMemo(null);
+  };
+
   const toggleAlwaysOnTop = async () => {
     try {
       if (typeof window !== 'undefined' && window.require) {
@@ -472,6 +544,17 @@ export default function PomodoroTimer() {
     }
   };
 
+  const openGithub = async () => {
+    try {
+      if (typeof window !== 'undefined' && window.require) {
+        const { shell } = window.require('electron');
+        await shell.openExternal('https://github.com/chanp5660/Minit');
+      }
+    } catch (error) {
+      console.error('GitHub 링크 열기 실패:', error);
+    }
+  };
+
   const getTodaySessions = () => {
     const today = new Date().toDateString();
     let todaySessions = sessions.filter(s => new Date(s.timestamp).toDateString() === today);
@@ -492,11 +575,13 @@ export default function PomodoroTimer() {
     const todaySessions = getTodaySessions();
     const totalMinutes = todaySessions.reduce((acc, s) => acc + s.duration, 0);
     const completedCount = todaySessions.filter(s => s.completed).length;
+    const inProgressCount = todaySessions.filter(s => s.inProgress && !s.completed).length;
     return {
       totalMinutes,
       totalHours: (totalMinutes / 60).toFixed(1),
       sessionCount: todaySessions.length,
-      completedCount
+      completedCount,
+      inProgressCount
     };
   };
 
@@ -656,6 +741,20 @@ export default function PomodoroTimer() {
             title={focusMode ? '일반 모드로 전환' : '집중 모드로 전환'}
           >
             🎯
+          </button>
+          {/* GitHub Link Button */}
+          <button
+            onClick={openGithub}
+            className={`absolute top-0 rounded-lg transition-all shadow-md ${
+              focusMode ? 'right-36 p-2 text-sm' : 'right-48 p-3'
+            } ${
+              darkMode
+                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                : 'bg-white text-gray-600 hover:bg-gray-100'
+            }`}
+            title="GitHub 저장소"
+          >
+            <Github className={focusMode ? 'w-4 h-4' : 'w-5 h-5'} />
           </button>
           {/* Dark Mode Toggle Button */}
           <button
@@ -978,7 +1077,7 @@ export default function PomodoroTimer() {
                 <h3 className={`text-lg font-semibold mb-3 ${
                   darkMode ? 'text-gray-200' : 'text-gray-700'
                 }`}>오늘의 요약</h3>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-3 mb-3">
                   <div className={`rounded-lg p-4 text-center ${
                     timerType === 'work'
                       ? darkMode ? 'bg-purple-900' : 'bg-purple-50'
@@ -1007,15 +1106,27 @@ export default function PomodoroTimer() {
                       darkMode ? 'text-gray-400' : 'text-gray-600'
                     }`}>총 세션</div>
                   </div>
-                  <div className={`rounded-lg p-4 text-center ${
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className={`rounded-lg p-3 text-center ${
                     darkMode ? 'bg-green-900' : 'bg-green-50'
                   }`}>
-                    <div className={`text-2xl font-bold ${
+                    <div className={`text-xl font-bold ${
                       darkMode ? 'text-green-400' : 'text-green-600'
                     }`}>{stats.completedCount}</div>
-                    <div className={`text-sm ${
+                    <div className={`text-xs ${
                       darkMode ? 'text-gray-400' : 'text-gray-600'
                     }`}>완료</div>
+                  </div>
+                  <div className={`rounded-lg p-3 text-center ${
+                    darkMode ? 'bg-yellow-900' : 'bg-yellow-50'
+                  }`}>
+                    <div className={`text-xl font-bold ${
+                      darkMode ? 'text-yellow-400' : 'text-yellow-600'
+                    }`}>{stats.inProgressCount}</div>
+                    <div className={`text-xs ${
+                      darkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>진행 중</div>
                   </div>
                 </div>
               </div>
@@ -1052,7 +1163,14 @@ export default function PomodoroTimer() {
                     {memos.map((memo, index) => (
                       <div
                         key={memo.id}
-                        className={`border-2 rounded-lg p-4 transition-all ${
+                        draggable="true"
+                        onDragStart={(e) => handleDragStart(e, memo)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, memo)}
+                        onDragEnd={handleDragEnd}
+                        className={`border-2 rounded-lg p-4 transition-all cursor-move ${
+                          draggedMemo?.id === memo.id ? 'opacity-50' : ''
+                        } ${
                           darkMode
                             ? 'border-gray-700 hover:border-purple-600'
                             : 'border-gray-200 hover:border-purple-300'
@@ -1096,17 +1214,30 @@ export default function PomodoroTimer() {
                               <ChevronDown className="w-4 h-4" />
                             </button>
                           </div>
-                          <button
-                            onClick={() => deleteMemo(memo.id)}
-                            className={`p-1.5 rounded-lg transition-all ${
-                              darkMode
-                                ? 'text-gray-500 hover:text-red-400 hover:bg-gray-600'
-                                : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
-                            }`}
-                            title="삭제"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => copyMemoToTask(memo.content)}
+                              className={`p-1.5 rounded-lg transition-all ${
+                                darkMode
+                                  ? 'text-gray-500 hover:text-green-400 hover:bg-gray-600'
+                                  : 'text-gray-400 hover:text-green-500 hover:bg-green-50'
+                              }`}
+                              title="작업으로 등록"
+                            >
+                              <ArrowRight className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteMemo(memo.id)}
+                              className={`p-1.5 rounded-lg transition-all ${
+                                darkMode
+                                  ? 'text-gray-500 hover:text-red-400 hover:bg-gray-600'
+                                  : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                              }`}
+                              title="삭제"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1141,13 +1272,11 @@ export default function PomodoroTimer() {
               </div>
               <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 text-white">
                 <div className="text-3xl font-bold">{stats.completedCount}</div>
-                <div className="text-green-100">완료한 작업</div>
+                <div className="text-green-100">완료</div>
               </div>
-              <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-5 text-white">
-                <div className="text-3xl font-bold">
-                  {stats.sessionCount > 0 ? Math.round((stats.completedCount / stats.sessionCount) * 100) : 0}%
-                </div>
-                <div className="text-orange-100">완료율</div>
+              <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl p-5 text-white">
+                <div className="text-3xl font-bold">{stats.inProgressCount}</div>
+                <div className="text-yellow-100">진행 중</div>
               </div>
             </div>
 
@@ -1317,11 +1446,15 @@ export default function PomodoroTimer() {
                                   ? darkMode
                                     ? 'bg-green-900 text-green-300'
                                     : 'bg-green-100 text-green-700'
-                                  : darkMode
-                                    ? 'bg-red-900 text-red-300'
-                                    : 'bg-red-100 text-red-700'
+                                  : session.inProgress
+                                    ? darkMode
+                                      ? 'bg-yellow-900 text-yellow-300'
+                                      : 'bg-yellow-100 text-yellow-700'
+                                    : darkMode
+                                      ? 'bg-red-900 text-red-300'
+                                      : 'bg-red-100 text-red-700'
                               }`}>
-                                {session.completed ? '완료' : '미완료'}
+                                {session.completed ? '완료' : session.inProgress ? '진행 중' : '미완료'}
                               </div>
                               <button
                                 onClick={() => restartSession(session)}
@@ -1465,20 +1598,82 @@ export default function PomodoroTimer() {
               }`}>
                 <span className="font-semibold">"{taskTitle}"</span> 작업을 완료하셨나요?
               </p>
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3">
                 <button
-                  onClick={() => handleTaskCompletion(true)}
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+                  onClick={() => handleTaskCompletion(true, false)}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
                 >
                   <CheckCircle className="w-5 h-5" />
                   완료했어요
                 </button>
                 <button
-                  onClick={() => handleTaskCompletion(false)}
-                  className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+                  onClick={() => handleTaskCompletion(false, true)}
+                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
                 >
-                  <XCircle className="w-5 h-5" />
-                  못했어요
+                  <Clock className="w-5 h-5" />
+                  진행 중이에요
+                </button>
+                <button
+                  onClick={() => setShowConfirmation(false)}
+                  className={`w-full py-3 rounded-xl font-semibold transition-all ${
+                    darkMode
+                      ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  }`}
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Partial Save Modal */}
+        {showPartialSaveModal && partialSessionData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-2xl p-8 max-w-md w-full shadow-2xl ${
+              darkMode ? 'bg-gray-800' : 'bg-white'
+            }`}>
+              <h3 className={`text-2xl font-bold mb-4 ${
+                darkMode ? 'text-gray-100' : 'text-gray-800'
+              }`}>작업 저장</h3>
+              <p className={`mb-2 ${
+                darkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}>
+                <span className="font-semibold">"{partialSessionData.title}"</span>
+              </p>
+              <p className={`mb-6 text-sm ${
+                darkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                {partialSessionData.duration}분이 기록됩니다. 작업 상태를 선택해주세요.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => handlePartialSaveCompletion(true, false)}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  완료했어요
+                </button>
+                <button
+                  onClick={() => handlePartialSaveCompletion(false, true)}
+                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+                >
+                  <Clock className="w-5 h-5" />
+                  진행 중이에요
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPartialSaveModal(false);
+                    setPartialSessionData(null);
+                  }}
+                  className={`w-full py-3 rounded-xl font-semibold transition-all ${
+                    darkMode
+                      ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  }`}
+                >
+                  취소
                 </button>
               </div>
             </div>
@@ -1598,11 +1793,15 @@ export default function PomodoroTimer() {
                             ? darkMode
                               ? 'bg-green-900 text-green-300'
                               : 'bg-green-100 text-green-700'
-                            : darkMode
-                              ? 'bg-red-900 text-red-300'
-                              : 'bg-red-100 text-red-700'
+                            : session.inProgress
+                              ? darkMode
+                                ? 'bg-yellow-900 text-yellow-300'
+                                : 'bg-yellow-100 text-yellow-700'
+                              : darkMode
+                                ? 'bg-red-900 text-red-300'
+                                : 'bg-red-100 text-red-700'
                         }`}>
-                          {session.completed ? '완료' : '미완료'}
+                          {session.completed ? '완료' : session.inProgress ? '진행 중' : '미완료'}
                         </div>
                       </div>
                     </div>
@@ -1704,6 +1903,11 @@ export default function PomodoroTimer() {
                         <>
                           <CheckCircle className="w-5 h-5 text-green-500" />
                           <span className="text-green-600 font-semibold">완료</span>
+                        </>
+                      ) : selectedSession.inProgress ? (
+                        <>
+                          <Clock className="w-5 h-5 text-yellow-500" />
+                          <span className="text-yellow-600 font-semibold">진행 중</span>
                         </>
                       ) : (
                         <>
