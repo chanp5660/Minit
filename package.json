@@ -11,7 +11,7 @@
     "electron:build": "vite build && electron-builder"
   },
   "keywords": ["minit", "timer", "productivity", "time-tracking"],
-  "author": "",
+  "author": "Chan Park",
   "license": "MIT",
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
