@@ -27,18 +27,23 @@
 - **실시간 통계**: 오늘의 총 집중 시간, 세션 수, 완료율 추적
 - **태그 시스템**: `#태그` 문법으로 작업 분류 및 카테고리화
 - **태그 필터링**: 태그 클릭으로 원하는 작업만 필터링 (다중 선택 지원)
+- **세션 수정**: 세션의 제목, 시작 시간, 종료 시간 수정 가능
+- **세션 삭제**: 세션 삭제 시 확인 모달 (다시 묻지 않음 옵션 제공)
 - **작업 재시작**: 이전에 수행한 작업을 원클릭으로 다시 시작
 
 ### 📈 시각화
 - **목록 뷰**: 작업을 시간순 리스트로 확인
 - **타임라인 뷰**: 24시간 타임라인으로 하루의 작업 패턴을 시각적으로 파악
+- **시간 범위 선택**: 타임라인 뷰에서 표시할 시간 범위를 사용자가 직접 설정 가능
 - **겹치는 작업 표시**: 동시간대 작업 감지 및 투명도로 표현
-- **색상 구분**: 완료(녹색) / 미완료(빨강) 작업 시각적 구분
+- **색상 구분**: 완료(녹색) / 진행 중(노랑) / 미완료(빨강) 작업 시각적 구분
 
 ### 📝 메모
 - **다중 메모창**: 여러 개의 메모를 동시에 관리
-- **메모 순서 조정**: 위/아래 버튼으로 메모 순서 변경
+- **메모 선택**: 라디오 버튼으로 작업할 메모 선택
+- **메모 순서 조정**: 위/아래 버튼 또는 드래그 앤 드롭으로 메모 순서 변경
 - **자동 저장**: 메모 내용 실시간 자동 저장
+- **메모 태그 필터링**: 태그로 메모 필터링하여 필요한 메모만 표시
 
 ### 🎨 UI/UX
 - **다크 모드**: 눈의 피로를 줄이는 다크 그레이 테마 (🌙/☀️ 토글)
@@ -50,6 +55,7 @@
 - **자동 저장**: 모든 작업, 메모, 태그, 설정 자동 저장
 - **영구 보관**: 앱 종료 후에도 데이터 유지
 - **데이터 위치 표시**: 통계 탭에서 데이터 저장 경로 확인 가능
+- **삭제 확인 설정**: 세션/메모 삭제 시 확인 여부를 사용자가 설정 가능
 
 ## 스크린샷
 
@@ -79,14 +85,21 @@
 ## 사용 방법
 
 ### 기본 작업 흐름
-1. **작업 제목 입력**: 예시 - `#프로젝트 API 개발`
-2. **시간 설정**: 25분 권장 (포모도로 기법)
-3. **타이머 시작**: ▶️ 버튼 클릭
-4. **타이머 완료**: 완료/미완료 선택
-5. **휴식 모드**: 작업 완료 후 휴식 타이머로 전환 가능
+1. **메모 작성**: 메모 영역에 작업 내용 입력 (예: `#프로젝트 API 개발`)
+2. **메모 선택**: 시작할 메모의 라디오 버튼 선택
+3. **시간 설정**: 25분 권장 (포모도로 기법) 또는 원하는 시간 선택
+4. **타이머 시작**: ▶️ 버튼 클릭
+5. **타이머 완료**: 완료/미완료/진행 중 선택
+6. **휴식 모드**: 작업 완료 후 휴식 타이머로 전환 가능
+
+### 메모 관리
+- **다중 메모**: 여러 작업을 동시에 관리하려면 + 버튼으로 새 메모 추가
+- **메모 순서 조정**: 위/아래 버튼 또는 드래그 앤 드롭으로 순서 변경
+- **메모 태그 필터링**: 메모 영역의 태그 버튼으로 특정 태그가 포함된 메모만 필터링
+- **자동 저장**: 메모 내용은 실시간으로 자동 저장됩니다
 
 ### 태그 활용 팁
-- 작업 제목에 `#태그` 형식으로 태그 추가 (예: `#회의 #기획`)
+- 메모 내용에 `#태그` 형식으로 태그 추가 (예: `#회의 #기획`)
 - 통계 탭에서 태그 클릭으로 해당 태그 작업만 필터링
 - 여러 태그 동시 선택 가능 (AND 조건으로 필터링)
 - 태그는 자동으로 저장되어 빠른 입력 가능
@@ -95,16 +108,21 @@
 - 🎯 버튼으로 Focus Mode 전환
 - 작은 화면으로 타이머만 표시
 - 방해 요소 최소화로 집중력 향상
+- Focus Mode에서는 선택된 메모 내용이 타이머에 표시됩니다
 
 ### 휴식 모드 활용
 - 작업 타이머와 휴식 타이머를 전환하여 사용
-- 휴식 시간에는 작업 제목 입력 불필요
+- 휴식 시간에는 메모 선택 불필요
 - 휴식 완료 시 자동으로 리셋되어 다음 작업 준비
 
-### 타임라인 뷰 활용
-- 📊 타임라인 버튼으로 하루 작업 패턴 확인
-- 작업 시간대 파악 및 생산성 분석
-- 클릭으로 세션 상세 정보 확인 및 재시작/삭제 가능
+### 통계 및 세션 관리
+- **목록 뷰**: 작업을 시간순 리스트로 확인
+- **타임라인 뷰**: 📊 타임라인 버튼으로 하루 작업 패턴 확인
+- **시간 범위 선택**: 타임라인 뷰에서 표시할 시간 범위 조정 가능 (기본: 9시~21시)
+- **세션 상세 보기**: 타임라인 또는 목록에서 세션 클릭 시 상세 정보 확인
+- **세션 수정**: 세션 상세 모달에서 제목, 시작 시간, 종료 시간 수정 가능
+- **세션 재시작**: 이전 세션을 원클릭으로 다시 시작
+- **세션 삭제**: 세션 삭제 시 확인 모달 표시 (다시 묻지 않음 옵션 제공)
 
 ## 데이터 저장
 
@@ -112,10 +130,11 @@
 
 ```
 {실행파일 폴더}/data/
-├── minit-sessions.json   # 작업 세션 기록
-├── minit-memos.json       # 메모 내용
-├── minit-tags.json        # 태그 목록
-└── minit-darkmode.json    # 다크 모드 설정
+├── minit-sessions.json          # 작업 세션 기록
+├── minit-memos.json             # 메모 내용 (다중 메모 배열)
+├── minit-tags.json              # 태그 목록
+├── minit-darkmode.json          # 다크 모드 설정
+└── minit-dont-ask-delete.json  # 삭제 확인 설정 (다시 묻지 않음 옵션)
 ```
 
 통계 탭에서 정확한 데이터 저장 위치를 확인할 수 있습니다.
@@ -134,12 +153,60 @@
 ```
 minit/
 ├── src/
-│   └── App.jsx          # 메인 React 컴포넌트
+│   ├── App.jsx                    # 메인 React 컴포넌트
+│   ├── main.jsx                   # React 진입점
+│   ├── components/                # React 컴포넌트
+│   │   ├── Header.jsx            # 헤더 (다크모드, Always on Top 등)
+│   │   ├── TabNavigation.jsx     # 탭 네비게이션
+│   │   ├── Timer/                # 타이머 관련 컴포넌트
+│   │   │   ├── TimerDisplay.jsx
+│   │   │   ├── TimerControls.jsx
+│   │   │   ├── TimerTypeToggle.jsx
+│   │   │   ├── DurationSelector.jsx
+│   │   │   └── QuickStats.jsx
+│   │   ├── Memo/                 # 메모 관련 컴포넌트
+│   │   │   ├── MemoList.jsx
+│   │   │   ├── MemoItem.jsx
+│   │   │   └── MemoTagFilter.jsx
+│   │   ├── Stats/                # 통계 관련 컴포넌트
+│   │   │   ├── StatsOverview.jsx
+│   │   │   ├── SessionList.jsx
+│   │   │   ├── SessionListItem.jsx
+│   │   │   ├── TimelineView.jsx
+│   │   │   ├── TagFilter.jsx
+│   │   │   ├── ViewModeToggle.jsx
+│   │   │   └── TimeRangeSelector.jsx
+│   │   └── Modals/               # 모달 컴포넌트
+│   │       ├── ConfirmationModal.jsx
+│   │       ├── PartialSaveModal.jsx
+│   │       └── DeleteConfirmModal.jsx
+│   ├── hooks/                    # 커스텀 React 훅
+│   │   ├── useTimer.js
+│   │   ├── useMemos.js
+│   │   ├── useSessions.js
+│   │   ├── useTags.js
+│   │   ├── useStatistics.js
+│   │   ├── useDarkMode.js
+│   │   ├── useNotifications.js
+│   │   └── useWindowSettings.js
+│   └── utils/                    # 유틸리티 함수
+│       ├── timeUtils.js
+│       ├── tagUtils.js
+│       └── sessionUtils.js
 ├── electron/
-│   └── main.js          # Electron 메인 프로세스 및 IPC 핸들러
-├── dist/                # Vite 빌드 결과
-├── dist-electron/       # Electron 빌드 결과
-└── data/                # 사용자 데이터 저장 (런타임 생성)
+│   ├── main.js                   # Electron 메인 프로세스 진입점
+│   ├── handlers/                 # IPC 핸들러 모듈
+│   │   ├── sessions.js          # 세션 관리 핸들러
+│   │   ├── memos.js             # 메모 관리 핸들러
+│   │   ├── tags.js              # 태그 관리 핸들러
+│   │   ├── settings.js          # 설정 관리 핸들러
+│   │   └── window.js            # 윈도우 관리 핸들러
+│   └── utils/                    # Electron 유틸리티
+│       ├── paths.js             # 데이터 경로 관리
+│       └── storage.js            # 파일 저장/로드
+├── dist/                         # Vite 빌드 결과
+├── dist-electron/                # Electron 빌드 결과
+└── data/                         # 사용자 데이터 저장 (런타임 생성)
 ```
 
 ## 개발 배경
@@ -183,12 +250,25 @@ npm run electron:build
 - `npm run electron:build` - Windows 실행 파일 빌드
 
 ### IPC 핸들러
-Electron main.js에 구현된 IPC 핸들러:
+Electron handlers 모듈에 구현된 IPC 핸들러:
+
+**세션 관리** (`handlers/sessions.js`)
 - `save-sessions` / `load-sessions` - 작업 세션 저장/로드
-- `save-memos` / `load-memos` - 메모 저장/로드
+
+**메모 관리** (`handlers/memos.js`)
+- `save-memos` / `load-memos` - 메모 저장/로드 (다중 메모 배열, 레거시 마이그레이션 지원)
+
+**태그 관리** (`handlers/tags.js`)
 - `save-tags` / `load-tags` - 태그 저장/로드
+
+**설정 관리** (`handlers/settings.js`)
 - `save-dark-mode` / `load-dark-mode` - 다크 모드 설정 저장/로드
+- `save-dont-ask-delete` / `load-dont-ask-delete` - 삭제 확인 설정 저장/로드
+
+**윈도우 관리** (`handlers/window.js`)
+- `get-data-path` - 데이터 저장 경로 조회
 - `toggle-always-on-top` - Always on Top 토글
+- `get-always-on-top` - Always on Top 상태 조회
 - `set-window-size` - 창 크기 조절
 
 ## 라이선스
