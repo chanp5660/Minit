@@ -80,6 +80,10 @@ function getDarkModeFilePath() {
   return path.join(getDataPath(), 'minit-darkmode.json');
 }
 
+function getDontAskDeleteFilePath() {
+  return path.join(getDataPath(), 'minit-dont-ask-delete.json');
+}
+
 // data 폴더 생성 (없으면)
 function ensureDataDirectory() {
   const dataPath = getDataPath();
@@ -255,6 +259,34 @@ ipcMain.handle('load-dark-mode', async () => {
     return { success: true, data: false }; // 기본값: 라이트 모드
   } catch (error) {
     console.error('다크 모드 로드 실패:', error);
+    return { success: false, error: error.message, data: false };
+  }
+});
+
+// 삭제 확인 안 묻기 설정 저장
+ipcMain.handle('save-dont-ask-delete', async (event, dontAsk) => {
+  try {
+    ensureDataDirectory();
+    const filePath = getDontAskDeleteFilePath();
+    fs.writeFileSync(filePath, JSON.stringify({ dontAsk }, null, 2), 'utf-8');
+    return { success: true };
+  } catch (error) {
+    console.error('삭제 확인 설정 저장 실패:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 삭제 확인 안 묻기 설정 로드
+ipcMain.handle('load-dont-ask-delete', async () => {
+  try {
+    const filePath = getDontAskDeleteFilePath();
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf-8');
+      return { success: true, data: JSON.parse(data).dontAsk };
+    }
+    return { success: true, data: false }; // 기본값: 물어보기
+  } catch (error) {
+    console.error('삭제 확인 설정 로드 실패:', error);
     return { success: false, error: error.message, data: false };
   }
 });

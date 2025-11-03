@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Pause, RotateCcw, BarChart3, CheckCircle, XCircle, Trash2, ChevronUp, ChevronDown, Plus, ArrowRight, Github } from 'lucide-react';
+import { Clock, Play, Pause, RotateCcw, BarChart3, CheckCircle, XCircle, Trash2, ChevronUp, ChevronDown, Plus, ArrowRight, Github, ArrowUpToLine, ArrowDownToLine, HelpCircle } from 'lucide-react';
 
 export default function PomodoroTimer() {
   const [activeTab, setActiveTab] = useState('timer');
@@ -19,6 +19,7 @@ export default function PomodoroTimer() {
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [tags, setTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedMemoTags, setSelectedMemoTags] = useState([]);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'timeline'
   const [selectedSession, setSelectedSession] = useState(null); // 타임라인에서 선택된 세션
   const [expandedTimeSlot, setExpandedTimeSlot] = useState(null); // 확장된 시간대 그룹
@@ -26,6 +27,12 @@ export default function PomodoroTimer() {
   const [draggedMemo, setDraggedMemo] = useState(null); // 드래그 중인 메모
   const [showPartialSaveModal, setShowPartialSaveModal] = useState(false); // 부분 저장 모달
   const [partialSessionData, setPartialSessionData] = useState(null); // 부분 저장 데이터
+  const [activeMemoId, setActiveMemoId] = useState(null); // 작업중인 메모 ID
+  const [showEditModal, setShowEditModal] = useState(false); // 수정 모달
+  const [editingSession, setEditingSession] = useState(null); // 수정 중인 세션
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); // 삭제 확인 모달
+  const [deleteConfirmData, setDeleteConfirmData] = useState(null); // 삭제 확인 데이터 {type: 'memo' | 'session', id: number, callback: function}
+  const [dontAskDelete, setDontAskDelete] = useState(false); // 다시 묻지 않음
   const audioRef = useRef(null);
   const isInitialLoad = useRef(true);
   const taskTitleInputRef = useRef(null);
@@ -119,7 +126,16 @@ export default function PomodoroTimer() {
           // 메모 로드
           const memosResult = await ipcRenderer.invoke('load-memos');
           if (memosResult.success && memosResult.data) {
-            setMemos(memosResult.data);
+            // 메모 내용에서 태그 자동 추출 (마이그레이션)
+            const migratedMemos = memosResult.data.map(memo => ({
+              ...memo,
+              tags: extractTags(memo.content || '')
+            }));
+            setMemos(migratedMemos);
+            // 첫 번째 메모를 기본으로 체크
+            if (migratedMemos.length > 0 && !activeMemoId) {
+              setActiveMemoId(migratedMemos[0].id);
+            }
           }
           // 태그 로드
           const tagsResult = await ipcRenderer.invoke('load-tags');
@@ -130,6 +146,11 @@ export default function PomodoroTimer() {
           const darkModeResult = await ipcRenderer.invoke('load-dark-mode');
           if (darkModeResult.success) {
             setDarkMode(darkModeResult.data);
+          }
+          // 삭제 확인 설정 로드
+          const dontAskResult = await ipcRenderer.invoke('load-dont-ask-delete');
+          if (dontAskResult.success) {
+            setDontAskDelete(dontAskResult.data || false);
           }
           // 데이터 경로 가져오기
           const path = await ipcRenderer.invoke('get-data-path');
@@ -147,6 +168,13 @@ export default function PomodoroTimer() {
     };
     loadSessions();
   }, []);
+
+  // 메모가 추가되거나 변경될 때 첫 번째 메모 자동 체크
+  useEffect(() => {
+    if (memos.length > 0 && !activeMemoId) {
+      setActiveMemoId(memos[0].id);
+    }
+  }, [memos, activeMemoId]);
 
   // 세션 변경 시 자동 저장
   useEffect(() => {
@@ -211,6 +239,22 @@ export default function PomodoroTimer() {
     saveDarkMode();
   }, [darkMode]);
 
+  // 삭제 확인 설정 변경 시 자동 저장
+  useEffect(() => {
+    const saveDontAskDelete = async () => {
+      try {
+        // 초기 로드가 완료된 후에만 저장
+        if (!isInitialLoad.current && typeof window !== 'undefined' && window.require) {
+          const { ipcRenderer } = window.require('electron');
+          await ipcRenderer.invoke('save-dont-ask-delete', dontAskDelete);
+        }
+      } catch (error) {
+        console.error('삭제 확인 설정 저장 실패:', error);
+      }
+    };
+    saveDontAskDelete();
+  }, [dontAskDelete]);
+
   // 색상 테마 헬퍼 함수
   const getTimerColors = () => {
     if (timerType === 'work') {
@@ -256,7 +300,8 @@ export default function PomodoroTimer() {
 
       // 시스템 알림 발송
       if (timerType === 'work') {
-        sendNotification('🍅 타이머 완료!', `"${taskTitle}" 작업 시간이 끝났습니다.`);
+        const activeContent = getActiveMemoContent();
+        sendNotification('🍅 타이머 완료!', `"${activeContent}" 작업 시간이 끝났습니다.`);
         setShowConfirmation(true);
       } else {
         sendNotification('🍅 휴식 완료!', '휴식 시간이 끝났습니다. 다시 집중해볼까요?');
@@ -265,7 +310,7 @@ export default function PomodoroTimer() {
       }
     }
     return () => clearInterval(interval);
-  }, [isRunning, timeLeft, timerType, taskTitle, selectedDuration, sendNotification]);
+  }, [isRunning, timeLeft, timerType, selectedDuration, sendNotification, activeMemoId, memos]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -282,10 +327,20 @@ export default function PomodoroTimer() {
     setTimeLeft(selectedDuration * 60);
   };
 
+  // 체크된 메모의 내용 반환
+  const getActiveMemoContent = () => {
+    if (!activeMemoId) return '';
+    const activeMemo = memos.find(m => m.id === activeMemoId);
+    return activeMemo ? activeMemo.content : '';
+  };
+
   const startTimer = () => {
-    if (!focusMode && timerType === 'work' && !taskTitle.trim()) {
-      alert('작업 제목을 입력해주세요!');
-      return;
+    if (!focusMode && timerType === 'work') {
+      const activeContent = getActiveMemoContent();
+      if (!activeContent.trim()) {
+        alert('작업중인 메모를 선택해주세요!');
+        return;
+      }
     }
     if (!isRunning) {
       setCurrentSessionStart(new Date());
@@ -317,13 +372,20 @@ export default function PomodoroTimer() {
   };
 
   const handleTaskCompletion = (completed, inProgress = false) => {
+    // 체크된 메모의 내용을 작업 제목으로 사용
+    const activeContent = getActiveMemoContent();
+    if (!activeContent.trim()) {
+      alert('작업중인 메모를 선택해주세요!');
+      return;
+    }
+
     // 제목에서 태그 추출 및 저장
-    const extractedTags = extractTags(taskTitle);
+    const extractedTags = extractTags(activeContent);
     extractedTags.forEach(tag => saveTag(tag));
 
     const newSession = {
       id: Date.now(),
-      title: taskTitle,
+      title: activeContent,
       duration: selectedDuration,
       completed: completed,
       inProgress: inProgress,
@@ -333,14 +395,15 @@ export default function PomodoroTimer() {
     };
     setSessions([newSession, ...sessions]);
     setShowConfirmation(false);
-    setTaskTitle('');
     setTimeLeft(selectedDuration * 60);
     setCurrentSessionStart(null);
   };
 
   const saveCurrentSession = () => {
-    if (!taskTitle.trim()) {
-      alert('작업 제목을 입력해주세요!');
+    // 체크된 메모의 내용을 작업 제목으로 사용
+    const activeContent = getActiveMemoContent();
+    if (!activeContent.trim()) {
+      alert('작업중인 메모를 선택해주세요!');
       return;
     }
 
@@ -352,12 +415,12 @@ export default function PomodoroTimer() {
     }
 
     // 제목에서 태그 추출 및 저장
-    const extractedTags = extractTags(taskTitle);
+    const extractedTags = extractTags(activeContent);
     extractedTags.forEach(tag => saveTag(tag));
 
     // 부분 저장 데이터 준비
     const sessionData = {
-      title: taskTitle,
+      title: activeContent,
       duration: elapsedMinutes,
       timestamp: currentSessionStart || new Date(),
       endTime: new Date()
@@ -384,41 +447,57 @@ export default function PomodoroTimer() {
     setSessions([newSession, ...sessions]);
     setShowPartialSaveModal(false);
     setPartialSessionData(null);
-    setTaskTitle('');
     setTimeLeft(selectedDuration * 60);
     setIsRunning(false);
     setCurrentSessionStart(null);
   };
 
+  // 세션 삭제 확인
+  const confirmDeleteSession = (sessionId) => {
+    if (dontAskDelete) {
+      deleteSession(sessionId);
+      return;
+    }
+    setDeleteConfirmData({
+      type: 'session',
+      id: sessionId,
+      callback: () => deleteSession(sessionId)
+    });
+    setShowDeleteConfirm(true);
+  };
+
+  // 세션 삭제
   const deleteSession = (sessionId) => {
     setSessions(sessions.filter(s => s.id !== sessionId));
   };
 
-  const restartSession = (session) => {
-    // 세션의 제목과 시간으로 타이머 설정
-    setTaskTitle(session.title);
-    setSelectedDuration(session.duration);
-    setTimeLeft(session.duration * 60);
-    setTimerType('work');
-    setIsRunning(false);
-    // 타이머 탭으로 전환
-    setActiveTab('timer');
+  // 라디오 버튼 클릭 핸들러
+  const handleMemoRadioChange = (memoId) => {
+    setActiveMemoId(memoId === activeMemoId ? null : memoId);
   };
 
-  // 메모를 작업 제목으로 복사
-  const copyMemoToTask = (memoContent) => {
-    if (!memoContent.trim()) {
-      alert('메모 내용이 비어있습니다!');
-      return;
-    }
-    setTaskTitle(memoContent);
-    setActiveTab('timer');
-    // 입력 필드에 포커스
-    setTimeout(() => {
-      if (taskTitleInputRef.current) {
-        taskTitleInputRef.current.focus();
+  // 세션 수정 함수
+  const updateSession = (sessionId, newTitle, newStartTime, newEndTime) => {
+    setSessions(sessions.map(s => {
+      if (s.id === sessionId) {
+        const updated = { ...s, title: newTitle };
+        if (newStartTime) {
+          updated.timestamp = newStartTime;
+        }
+        if (newEndTime) {
+          updated.endTime = newEndTime;
+        }
+        // 시작 시간과 종료 시간으로부터 duration 자동 계산
+        if (newStartTime && newEndTime) {
+          const durationMs = newEndTime.getTime() - newStartTime.getTime();
+          updated.duration = Math.ceil(durationMs / (1000 * 60)); // 분 단위로 변환
+        }
+        return updated;
       }
-    }, 100);
+      return s;
+    }));
+    setShowEditModal(false);
+    setEditingSession(null);
   };
 
   // 메모 추가
@@ -426,9 +505,24 @@ export default function PomodoroTimer() {
     const newMemo = {
       id: Date.now(),
       content: '',
-      order: memos.length
+      order: memos.length,
+      tags: []
     };
     setMemos([...memos, newMemo]);
+  };
+
+  // 메모 삭제 확인
+  const confirmDeleteMemo = (id) => {
+    if (dontAskDelete) {
+      deleteMemo(id);
+      return;
+    }
+    setDeleteConfirmData({
+      type: 'memo',
+      id: id,
+      callback: () => deleteMemo(id)
+    });
+    setShowDeleteConfirm(true);
   };
 
   // 메모 삭제
@@ -437,13 +531,24 @@ export default function PomodoroTimer() {
       .filter(m => m.id !== id)
       .map((m, index) => ({ ...m, order: index }));
     setMemos(updatedMemos);
+    // 삭제된 메모가 작업중이었다면 첫 번째 메모로 변경
+    if (activeMemoId === id && updatedMemos.length > 0) {
+      setActiveMemoId(updatedMemos[0].id);
+    } else if (activeMemoId === id) {
+      setActiveMemoId(null);
+    }
   };
 
-  // 메모 내용 수정
+  // 메모 내용 수정 (태그 자동 추출)
   const updateMemo = (id, content) => {
-    const updatedMemos = memos.map(m =>
-      m.id === id ? { ...m, content } : m
-    );
+    const updatedMemos = memos.map(m => {
+      if (m.id === id) {
+        // 메모 내용에서 태그 자동 추출
+        const extractedTags = extractTags(content);
+        return { ...m, content, tags: extractedTags };
+      }
+      return m;
+    });
     setMemos(updatedMemos);
   };
 
@@ -473,6 +578,72 @@ export default function PomodoroTimer() {
     // order 재정렬
     const reorderedMemos = updatedMemos.map((m, i) => ({ ...m, order: i }));
     setMemos(reorderedMemos);
+  };
+
+  // 메모 맨 위로 이동
+  const moveMemoToTop = (id) => {
+    const index = memos.findIndex(m => m.id === id);
+    if (index <= 0) return; // 이미 맨 위면 무시
+
+    const updatedMemos = [...memos];
+    const [memo] = updatedMemos.splice(index, 1);
+    updatedMemos.unshift(memo);
+
+    // order 재정렬
+    const reorderedMemos = updatedMemos.map((m, i) => ({ ...m, order: i }));
+    setMemos(reorderedMemos);
+  };
+
+  // 메모 맨 아래로 이동
+  const moveMemoToBottom = (id) => {
+    const index = memos.findIndex(m => m.id === id);
+    if (index < 0 || index >= memos.length - 1) return; // 이미 맨 아래면 무시
+
+    const updatedMemos = [...memos];
+    const [memo] = updatedMemos.splice(index, 1);
+    updatedMemos.push(memo);
+
+    // order 재정렬
+    const reorderedMemos = updatedMemos.map((m, i) => ({ ...m, order: i }));
+    setMemos(reorderedMemos);
+  };
+
+  // 메모 태그 필터 토글
+  const toggleMemoTagFilter = (tag) => {
+    if (selectedMemoTags.includes(tag)) {
+      setSelectedMemoTags(selectedMemoTags.filter(t => t !== tag));
+    } else {
+      setSelectedMemoTags([...selectedMemoTags, tag]);
+    }
+  };
+
+  // 메모창 높이 계산 (최대 5줄)
+  const calculateTextareaRows = (content) => {
+    if (!content) return 1;
+    const lines = content.split('\n').length;
+    return Math.min(Math.max(lines, 1), 5);
+  };
+
+  // 필터링된 메모 목록 반환 (메모 내용에서 태그 추출)
+  const getFilteredMemos = () => {
+    if (selectedMemoTags.length === 0) {
+      return memos;
+    }
+    return memos.filter(memo => {
+      const extractedTags = extractTags(memo.content || '');
+      // 선택된 태그 중 하나라도 포함되면 표시 (OR 조건)
+      return selectedMemoTags.some(tag => extractedTags.includes(tag));
+    });
+  };
+
+  // 모든 메모 태그 수집 (필터링용) - 메모 내용에서 직접 추출
+  const getAllMemoTags = () => {
+    const allTags = new Set();
+    memos.forEach(memo => {
+      const extractedTags = extractTags(memo.content || '');
+      extractedTags.forEach(tag => allTags.add(tag));
+    });
+    return Array.from(allTags).sort();
   };
 
   // 드래그 시작
@@ -707,7 +878,7 @@ export default function PomodoroTimer() {
           <h1 className={`font-bold ${
             darkMode ? 'text-gray-100' : 'text-gray-800'
           } ${focusMode ? 'text-xl mb-1' : 'text-4xl mb-2'}`}>
-            {focusMode ? (taskTitle.trim() || '작업 제목 없음') : '⏰ Minit'}
+            {focusMode ? (getActiveMemoContent().trim() || '작업 제목 없음') : '⏰ Minit'}
           </h1>
           {!focusMode && <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>작업 실행 시간을 기록하고 추적하세요</p>}
           {/* Always on Top Button */}
@@ -851,55 +1022,7 @@ export default function PomodoroTimer() {
 
             {/* Task Input */}
             {!focusMode && (
-              timerType === 'work' ? (
-                <div className="mb-8">
-                  <label className={`block text-sm font-medium mb-2 ${
-                    darkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    작업 제목
-                  </label>
-                  <input
-                    ref={taskTitleInputRef}
-                    type="text"
-                    value={taskTitle}
-                    onChange={(e) => setTaskTitle(e.target.value)}
-                    placeholder="예: #cpue baseline 코드 작성"
-                    className={`w-full px-4 py-3 rounded-lg focus:border-purple-500 focus:outline-none text-lg ${
-                      darkMode
-                        ? 'bg-gray-700 border-2 border-gray-600 text-gray-100 placeholder-gray-400'
-                        : 'bg-white border-2 border-gray-200 text-gray-800'
-                    }`}
-                    disabled={isRunning}
-                  />
-                  {/* 태그 버튼 섹션 */}
-                  {tags.length > 0 && (
-                    <div className="mt-3">
-                      <label className={`block text-xs font-medium mb-2 ${
-                        darkMode ? 'text-gray-400' : 'text-gray-500'
-                      }`}>
-                        📌 빠른 태그
-                      </label>
-                      <div className="flex gap-2 flex-wrap">
-                        {tags.map((tag, index) => (
-                          <button
-                            key={index}
-                            type="button"
-                            onClick={() => addTagToTitle(tag)}
-                            disabled={isRunning}
-                            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                              darkMode
-                                ? 'bg-purple-900 text-purple-300 hover:bg-purple-800'
-                                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                            }`}
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
+              timerType === 'work' ? null : (
                 <div className="mb-8">
                   <div className={`border-2 rounded-lg p-4 text-center ${
                     darkMode
@@ -998,7 +1121,7 @@ export default function PomodoroTimer() {
               {!focusMode && timerType === 'work' && (
                 <button
                   onClick={saveCurrentSession}
-                  disabled={!taskTitle.trim() || timeLeft === selectedDuration * 60}
+                  disabled={!getActiveMemoContent().trim() || timeLeft === selectedDuration * 60}
                   className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CheckCircle className="w-6 h-6" />
@@ -1138,9 +1261,21 @@ export default function PomodoroTimer() {
                 darkMode ? 'border-gray-700' : 'border-gray-100'
               }`}>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className={`text-lg font-semibold ${
-                    darkMode ? 'text-gray-200' : 'text-gray-700'
-                  }`}>📝 메모</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className={`text-lg font-semibold ${
+                      darkMode ? 'text-gray-200' : 'text-gray-700'
+                    }`}>📝 메모</h3>
+                    <div className="relative group">
+                      <HelpCircle className={`w-4 h-4 ${
+                        darkMode ? 'text-gray-400' : 'text-gray-500'
+                      } cursor-help`} />
+                      <div className={`absolute left-0 top-6 w-64 p-2 rounded-lg text-xs shadow-lg z-10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all ${
+                        darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-gray-100'
+                      }`}>
+                        메모에 #태그 형식으로 작성하면 자동으로 태그가 추가됩니다.
+                      </div>
+                    </div>
+                  </div>
                   <button
                     onClick={addMemo}
                     className="flex items-center gap-1 px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-all"
@@ -1150,97 +1285,186 @@ export default function PomodoroTimer() {
                   </button>
                 </div>
 
-                {memos.length === 0 ? (
+                {/* 태그 필터 */}
+                {getAllMemoTags().length > 0 && (
+                  <div className="mb-4">
+                    <label className={`block text-xs font-medium mb-2 ${
+                      darkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
+                      태그 필터
+                      {selectedMemoTags.length > 0 && (
+                        <span className={`ml-2 ${
+                          darkMode ? 'text-purple-400' : 'text-purple-600'
+                        }`}>
+                          ({selectedMemoTags.length}개 선택됨)
+                        </span>
+                      )}
+                    </label>
+                    <div className="flex gap-2 flex-wrap">
+                      {getAllMemoTags().map((tag) => {
+                        const isSelected = selectedMemoTags.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() => toggleMemoTagFilter(tag)}
+                            className={`px-3 py-1 rounded-full text-sm font-medium shadow-sm transition-all hover:shadow-md ${
+                              isSelected
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white scale-105'
+                                : darkMode
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                  : 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 hover:from-purple-200 hover:to-pink-200'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedMemoTags.length > 0 && (
+                      <button
+                        onClick={() => setSelectedMemoTags([])}
+                        className={`mt-2 text-xs underline ${
+                          darkMode
+                            ? 'text-gray-400 hover:text-gray-300'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        필터 초기화
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {getFilteredMemos().length === 0 ? (
                   <div className={`text-center py-8 border-2 border-dashed rounded-lg ${
                     darkMode
                       ? 'text-gray-500 border-gray-700'
                       : 'text-gray-400 border-gray-200'
                   }`}>
-                    <p>메모를 추가해보세요</p>
+                    <p>{selectedMemoTags.length > 0 ? '선택한 태그와 일치하는 메모가 없습니다' : '메모를 추가해보세요'}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {memos.map((memo, index) => (
-                      <div
-                        key={memo.id}
-                        draggable="true"
-                        onDragStart={(e) => handleDragStart(e, memo)}
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, memo)}
-                        onDragEnd={handleDragEnd}
-                        className={`border-2 rounded-lg p-4 transition-all cursor-move ${
-                          draggedMemo?.id === memo.id ? 'opacity-50' : ''
-                        } ${
-                          darkMode
-                            ? 'border-gray-700 hover:border-purple-600'
-                            : 'border-gray-200 hover:border-purple-300'
-                        }`}
-                      >
-                        <textarea
-                          value={memo.content}
-                          onChange={(e) => updateMemo(memo.id, e.target.value)}
-                          placeholder="메모 내용을 입력하세요..."
-                          className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none resize-none mb-2 ${
-                            darkMode
-                              ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400'
-                              : 'bg-white border-gray-200 text-gray-700'
+                    {getFilteredMemos().map((memo, index) => {
+                      const originalIndex = memos.findIndex(m => m.id === memo.id);
+                      return (
+                        <div
+                          key={memo.id}
+                          draggable="true"
+                          onDragStart={(e) => handleDragStart(e, memo)}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, memo)}
+                          onDragEnd={handleDragEnd}
+                          className={`flex flex-col gap-2 border-2 rounded-lg p-4 transition-all cursor-move ${
+                            draggedMemo?.id === memo.id ? 'opacity-50' : ''
+                          } ${
+                            activeMemoId === memo.id
+                              ? darkMode
+                                ? 'bg-purple-900/30 border-purple-500 hover:border-purple-400'
+                                : 'bg-purple-50 border-purple-400 hover:border-purple-500'
+                              : darkMode
+                                ? 'border-gray-700 hover:border-purple-600'
+                                : 'border-gray-200 hover:border-purple-300'
                           }`}
-                          rows="3"
-                        />
-                        <div className="flex items-center justify-between">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => moveMemoUp(memo.id)}
-                              disabled={index === 0}
-                              className={`p-1.5 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
-                                darkMode
-                                  ? 'text-gray-500 hover:text-purple-400 hover:bg-gray-600'
-                                  : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50'
-                              }`}
-                              title="위로 이동"
-                            >
-                              <ChevronUp className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => moveMemoDown(memo.id)}
-                              disabled={index === memos.length - 1}
-                              className={`p-1.5 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
-                                darkMode
-                                  ? 'text-gray-500 hover:text-purple-400 hover:bg-gray-600'
-                                  : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50'
-                              }`}
-                              title="아래로 이동"
-                            >
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => copyMemoToTask(memo.content)}
-                              className={`p-1.5 rounded-lg transition-all ${
-                                darkMode
-                                  ? 'text-gray-500 hover:text-green-400 hover:bg-gray-600'
-                                  : 'text-gray-400 hover:text-green-500 hover:bg-green-50'
-                              }`}
-                              title="작업으로 등록"
-                            >
-                              <ArrowRight className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => deleteMemo(memo.id)}
-                              className={`p-1.5 rounded-lg transition-all ${
-                                darkMode
-                                  ? 'text-gray-500 hover:text-red-400 hover:bg-gray-600'
-                                  : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
-                              }`}
-                              title="삭제"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                        >
+                          {/* 메모 작성 영역 */}
+                          <textarea
+                            value={memo.content}
+                            onChange={(e) => updateMemo(memo.id, e.target.value)}
+                            placeholder="메모 내용을 입력하세요..."
+                            className={`w-full px-3 py-2 border rounded-lg focus:border-purple-500 focus:outline-none resize-none ${
+                              darkMode
+                                ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400'
+                                : 'bg-white border-gray-200 text-gray-700'
+                            }`}
+                            rows={calculateTextareaRows(memo.content)}
+                          />
+                          
+                          {/* 태그와 버튼들이 같은 행 */}
+                          <div className="flex items-center justify-between gap-2">
+                            {/* 태그 표시 (메모 내용에서 자동 추출) */}
+                            {extractTags(memo.content || '').length > 0 ? (
+                              <div className="flex gap-1 flex-wrap flex-1">
+                                {extractTags(memo.content || '').map((tag, tagIndex) => (
+                                  <span
+                                    key={tagIndex}
+                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      darkMode
+                                        ? 'bg-purple-900 text-purple-300'
+                                        : 'bg-purple-100 text-purple-700'
+                                    }`}
+                                  >
+                                    #{tag}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex-1"></div>
+                            )}
+                            
+                            {/* 버튼들 */}
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="activeMemo"
+                                checked={activeMemoId === memo.id}
+                                onChange={() => handleMemoRadioChange(memo.id)}
+                                className={`w-4 h-4 cursor-pointer ${
+                                  darkMode ? 'accent-purple-500' : 'accent-purple-600'
+                                }`}
+                                title="작업중"
+                              />
+                              <button
+                                onClick={() => moveMemoToTop(memo.id)}
+                                disabled={originalIndex === 0}
+                                className={`p-1.5 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                                  darkMode
+                                    ? 'text-gray-500 hover:text-purple-400 hover:bg-gray-600'
+                                    : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50'
+                                }`}
+                                title="맨 위로"
+                              >
+                                <ArrowUpToLine className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => moveMemoToBottom(memo.id)}
+                                disabled={originalIndex === memos.length - 1}
+                                className={`p-1.5 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                                  darkMode
+                                    ? 'text-gray-500 hover:text-purple-400 hover:bg-gray-600'
+                                    : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50'
+                                }`}
+                                title="맨 아래로"
+                              >
+                                <ArrowDownToLine className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => confirmDeleteMemo(memo.id)}
+                                className={`p-1.5 rounded-lg transition-all ${
+                                  darkMode
+                                    ? 'text-gray-500 hover:text-red-400 hover:bg-gray-600'
+                                    : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                                }`}
+                                title="삭제"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
+                    
+                    {/* 하단 새 메모 버튼 */}
+                    <div className="flex justify-center pt-2">
+                      <button
+                        onClick={addMemo}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-all"
+                      >
+                        <Plus className="w-4 h-4" />
+                        새 메모
+                      </button>
+                    </div>
                   </div>
                 )}
                 <p className={`text-xs mt-2 ${
@@ -1457,18 +1681,23 @@ export default function PomodoroTimer() {
                                 {session.completed ? '완료' : session.inProgress ? '진행 중' : '미완료'}
                               </div>
                               <button
-                                onClick={() => restartSession(session)}
+                                onClick={() => {
+                                  setEditingSession(session);
+                                  setShowEditModal(true);
+                                }}
                                 className={`p-2 rounded-lg transition-all ${
                                   darkMode
-                                    ? 'text-gray-500 hover:text-purple-400 hover:bg-gray-600'
-                                    : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50'
+                                    ? 'text-gray-500 hover:text-blue-400 hover:bg-gray-600'
+                                    : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'
                                 }`}
-                                title="같은 작업 다시 시작"
+                                title="수정"
                               >
-                                <RotateCcw className="w-5 h-5" />
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
                               </button>
                               <button
-                                onClick={() => deleteSession(session.id)}
+                                onClick={() => confirmDeleteSession(session.id)}
                                 className={`p-2 rounded-lg transition-all text-xl ${
                                   darkMode
                                     ? 'text-gray-500 hover:text-red-400 hover:bg-gray-600'
@@ -1596,7 +1825,7 @@ export default function PomodoroTimer() {
               <p className={`mb-6 ${
                 darkMode ? 'text-gray-300' : 'text-gray-600'
               }`}>
-                <span className="font-semibold">"{taskTitle}"</span> 작업을 완료하셨나요?
+                <span className="font-semibold">"{getActiveMemoContent()}"</span> 작업을 완료하셨나요?
               </p>
               <div className="flex flex-col gap-3">
                 <button
@@ -1962,15 +2191,272 @@ export default function PomodoroTimer() {
                 </button>
                 <button
                   onClick={() => {
-                    if (window.confirm('이 세션을 삭제하시겠습니까?')) {
-                      deleteSession(selectedSession.id);
-                      setSelectedSession(null);
-                    }
+                    confirmDeleteSession(selectedSession.id);
+                    setSelectedSession(null);
                   }}
                   className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
                 >
                   <Trash2 className="w-5 h-5" />
                   삭제
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Session Edit Modal */}
+        {showEditModal && editingSession && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-2xl p-8 max-w-md w-full shadow-2xl ${
+              darkMode ? 'bg-gray-800' : 'bg-white'
+            }`}>
+              <h3 className={`text-2xl font-bold mb-6 ${
+                darkMode ? 'text-gray-100' : 'text-gray-800'
+              }`}>세션 수정</h3>
+              
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    darkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    작업 제목
+                  </label>
+                  <input
+                    type="text"
+                    id="edit-title"
+                    defaultValue={editingSession.title}
+                    className={`w-full px-4 py-3 rounded-lg focus:border-purple-500 focus:outline-none ${
+                      darkMode
+                        ? 'bg-gray-700 border-2 border-gray-600 text-gray-100'
+                        : 'bg-white border-2 border-gray-200 text-gray-800'
+                    }`}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      darkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      시작 시간
+                    </label>
+                    <input
+                      type="datetime-local"
+                      id="edit-start-time"
+                      defaultValue={(() => {
+                        const date = new Date(editingSession.timestamp);
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const hours = String(date.getHours()).padStart(2, '0');
+                        const minutes = String(date.getMinutes()).padStart(2, '0');
+                        return `${year}-${month}-${day}T${hours}:${minutes}`;
+                      })()}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const date = new Date(e.target.value);
+                          const formatted = date.toLocaleString('ko-KR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          });
+                          const previewEl = document.getElementById('start-time-preview');
+                          if (previewEl) {
+                            previewEl.textContent = formatted;
+                          }
+                        }
+                      }}
+                      className={`w-full px-4 py-3 rounded-lg focus:border-purple-500 focus:outline-none ${
+                        darkMode
+                          ? 'bg-gray-700 border-2 border-gray-600 text-gray-100'
+                          : 'bg-white border-2 border-gray-200 text-gray-800'
+                      }`}
+                    />
+                    <p id="start-time-preview" className={`text-xs mt-1 ${
+                      darkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
+                      {new Date(editingSession.timestamp).toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      darkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      종료 시간
+                    </label>
+                    <input
+                      type="datetime-local"
+                      id="edit-end-time"
+                      defaultValue={editingSession.endTime ? (() => {
+                        const date = new Date(editingSession.endTime);
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const hours = String(date.getHours()).padStart(2, '0');
+                        const minutes = String(date.getMinutes()).padStart(2, '0');
+                        return `${year}-${month}-${day}T${hours}:${minutes}`;
+                      })() : ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const date = new Date(e.target.value);
+                          const formatted = date.toLocaleString('ko-KR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          });
+                          const previewEl = document.getElementById('end-time-preview');
+                          if (previewEl) {
+                            previewEl.textContent = formatted;
+                          }
+                        }
+                      }}
+                      className={`w-full px-4 py-3 rounded-lg focus:border-purple-500 focus:outline-none ${
+                        darkMode
+                          ? 'bg-gray-700 border-2 border-gray-600 text-gray-100'
+                          : 'bg-white border-2 border-gray-200 text-gray-800'
+                      }`}
+                    />
+                    {editingSession.endTime && (
+                      <p id="end-time-preview" className={`text-xs mt-1 ${
+                        darkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        {new Date(editingSession.endTime).toLocaleString('ko-KR', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </p>
+                    )}
+                    {!editingSession.endTime && (
+                      <p id="end-time-preview" className={`text-xs mt-1 ${
+                        darkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}></p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    const titleInput = document.getElementById('edit-title');
+                    const startTimeInput = document.getElementById('edit-start-time');
+                    const endTimeInput = document.getElementById('edit-end-time');
+                    
+                    const newTitle = titleInput.value.trim();
+                    const newStartTime = startTimeInput.value ? new Date(startTimeInput.value) : null;
+                    const newEndTime = endTimeInput.value ? new Date(endTimeInput.value) : null;
+                    
+                    if (!newTitle) {
+                      alert('작업 제목을 입력해주세요!');
+                      return;
+                    }
+                    if (!newStartTime) {
+                      alert('시작 시간을 입력해주세요!');
+                      return;
+                    }
+                    if (!newEndTime) {
+                      alert('종료 시간을 입력해주세요!');
+                      return;
+                    }
+                    if (newStartTime >= newEndTime) {
+                      alert('종료 시간은 시작 시간보다 늦어야 합니다!');
+                      return;
+                    }
+                    
+                    updateSession(editingSession.id, newTitle, newStartTime, newEndTime);
+                  }}
+                  className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-xl font-semibold transition-all"
+                >
+                  저장
+                </button>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingSession(null);
+                  }}
+                  className={`flex-1 py-3 rounded-xl font-semibold transition-all ${
+                    darkMode
+                      ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  }`}
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && deleteConfirmData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-2xl p-8 max-w-md w-full shadow-2xl ${
+              darkMode ? 'bg-gray-800' : 'bg-white'
+            }`}>
+              <h3 className={`text-2xl font-bold mb-4 ${
+                darkMode ? 'text-gray-100' : 'text-gray-800'
+              }`}>삭제 확인</h3>
+              <p className={`mb-6 ${
+                darkMode ? 'text-gray-300' : 'text-gray-600'
+              }`}>
+                {deleteConfirmData.type === 'memo' 
+                  ? '이 메모를 삭제하시겠습니까?'
+                  : '이 작업 기록을 삭제하시겠습니까?'}
+              </p>
+              <div className="mb-6">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={dontAskDelete}
+                    onChange={(e) => setDontAskDelete(e.target.checked)}
+                    className={`w-4 h-4 rounded ${
+                      darkMode ? 'accent-purple-500' : 'accent-purple-600'
+                    }`}
+                  />
+                  <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
+                    다음부터 묻지 않기
+                  </span>
+                </label>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    deleteConfirmData.callback();
+                    setShowDeleteConfirm(false);
+                    setDeleteConfirmData(null);
+                  }}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition-all"
+                >
+                  삭제
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeleteConfirmData(null);
+                  }}
+                  className={`flex-1 py-3 rounded-xl font-semibold transition-all ${
+                    darkMode
+                      ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  }`}
+                >
+                  취소
                 </button>
               </div>
             </div>
