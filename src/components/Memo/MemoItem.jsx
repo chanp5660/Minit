@@ -1,4 +1,4 @@
-import { Trash2, ArrowUpToLine, ArrowDownToLine } from 'lucide-react';
+import { Trash2, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import { extractTags } from '../../utils/tagUtils';
 
 /**
@@ -22,6 +22,29 @@ export const MemoItem = ({
   handleDrop,
   handleDragEnd
 }) => {
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(memo.content || '');
+      // 복사 성공 시 간단한 피드백 (선택사항)
+      // alert('복사되었습니다!');
+    } catch (err) {
+      console.error('복사 실패:', err);
+      // 클립보드 API가 지원되지 않는 경우 대체 방법
+      const textArea = document.createElement('textarea');
+      textArea.value = memo.content || '';
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+      } catch (fallbackErr) {
+        console.error('대체 복사 방법도 실패:', fallbackErr);
+      }
+      document.body.removeChild(textArea);
+    }
+  };
+
   return (
     <div
       key={memo.id}
@@ -89,6 +112,17 @@ export const MemoItem = ({
             }`}
             title="작업중"
           />
+          <button
+            onClick={copyToClipboard}
+            className={`p-1.5 rounded-lg transition-all ${
+              darkMode
+                ? 'text-gray-500 hover:text-purple-400 hover:bg-gray-600'
+                : 'text-gray-400 hover:text-purple-500 hover:bg-purple-50'
+            }`}
+            title="복사"
+          >
+            <Copy className="w-4 h-4" />
+          </button>
           <button
             onClick={() => moveMemoToTop(memo.id)}
             disabled={originalIndex === 0}

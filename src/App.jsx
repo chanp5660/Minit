@@ -27,7 +27,6 @@ import { TimerDisplay } from './components/Timer/TimerDisplay';
 import { TimerControls } from './components/Timer/TimerControls';
 import { TimerTypeToggle } from './components/Timer/TimerTypeToggle';
 import { DurationSelector } from './components/Timer/DurationSelector';
-import { QuickStats } from './components/Timer/QuickStats';
 import { MemoList } from './components/Memo/MemoList';
 import { StatsOverview } from './components/Stats/StatsOverview';
 import { TagFilter } from './components/Stats/TagFilter';
@@ -557,15 +556,6 @@ export default function PomodoroTimer() {
                 darkMode={darkMode}
                 focusMode={focusMode}
                 handleCustomDuration={handleCustomDuration}
-              />
-            )}
-
-            {/* Today's Quick Stats */}
-            {!focusMode && (
-              <QuickStats
-                stats={stats}
-                timerType={timerType}
-                darkMode={darkMode}
               />
             )}
 

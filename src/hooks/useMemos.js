@@ -66,12 +66,17 @@ export const useMemos = (extractTagsFn) => {
     return activeMemo ? activeMemo.content : '';
   };
 
-  const addMemo = () => {
+  const addMemo = (selectedTags = []) => {
+    // 선택된 태그들을 #태그명 형식으로 변환하여 메모 내용에 추가
+    const tagContent = selectedTags.length > 0 
+      ? selectedTags.map(tag => `#${tag}`).join(' ') + ' '
+      : '';
+    
     const newMemo = {
       id: Date.now(),
-      content: '',
+      content: tagContent,
       order: memos.length,
-      tags: []
+      tags: selectedTags.length > 0 ? [...selectedTags] : []
     };
     setMemos(prev => [...prev, newMemo]);
   };
@@ -127,8 +132,23 @@ export const useMemos = (extractTagsFn) => {
 
   const calculateTextareaRows = (content) => {
     if (!content) return 1;
-    const lines = content.split('\n').length;
-    return Math.min(Math.max(lines, 1), 5);
+    
+    // 실제 줄바꿈으로 분리된 줄들
+    const actualLines = content.split('\n');
+    
+    // 각 줄의 길이를 고려하여 필요한 줄 수 계산
+    // 대략적으로 한 줄에 50자 정도가 들어간다고 가정 (padding, border 등을 고려)
+    const charsPerLine = 50;
+    let totalRows = 0;
+    
+    actualLines.forEach(line => {
+      // 각 줄이 필요한 행 수 계산 (줄바꿈이 필요한 경우)
+      const rowsNeeded = Math.max(1, Math.ceil(line.length / charsPerLine));
+      totalRows += rowsNeeded;
+    });
+    
+    // 최소 1줄, 최대 10줄로 제한 (기존 5줄 제한을 늘림)
+    return Math.min(Math.max(totalRows, 1), 10);
   };
 
   const handleDragStart = (e, memo) => {

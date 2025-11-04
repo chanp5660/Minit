@@ -44,12 +44,13 @@ export const MemoList = ({
             <div className={`absolute left-0 top-6 w-64 p-2 rounded-lg text-xs shadow-lg z-10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all ${
               darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-gray-100'
             }`}>
-              메모에 #태그 형식으로 작성하면 자동으로 태그가 추가됩니다.
+              메모에 #태그 형식으로 작성하면 자동으로 태그가 추가됩니다.<br />
+              💾 자동으로 저장됩니다.
             </div>
           </div>
         </div>
         <button
-          onClick={addMemo}
+          onClick={() => addMemo(selectedMemoTags)}
           className="flex items-center gap-1 px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-all"
         >
           <Plus className="w-4 h-4" />
@@ -104,7 +105,7 @@ export const MemoList = ({
           {/* 하단 새 메모 버튼 */}
           <div className="flex justify-center pt-2">
             <button
-              onClick={addMemo}
+              onClick={() => addMemo(selectedMemoTags)}
               className="flex items-center gap-1 px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-all"
             >
               <Plus className="w-4 h-4" />
@@ -113,9 +114,6 @@ export const MemoList = ({
           </div>
         </div>
       )}
-      <p className={`text-xs mt-2 ${
-        darkMode ? 'text-gray-500' : 'text-gray-500'
-      }`}>💾 자동으로 저장됩니다</p>
     </div>
   );
 };
