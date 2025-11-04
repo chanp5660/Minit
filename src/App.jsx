@@ -89,7 +89,6 @@ export default function PomodoroTimer() {
     updateMemo,
     moveMemoToTop,
     moveMemoToBottom,
-    calculateTextareaRows,
     handleDragStart,
     handleDragOver,
     handleDrop,
@@ -573,7 +572,6 @@ export default function PomodoroTimer() {
                 darkMode={darkMode}
                 addMemo={addMemo}
                 updateMemo={updateMemo}
-                calculateTextareaRows={calculateTextareaRows}
                 handleMemoRadioChange={handleMemoRadioChange}
                 moveMemoToTop={moveMemoToTop}
                 moveMemoToBottom={moveMemoToBottom}

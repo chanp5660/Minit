@@ -18,7 +18,6 @@ export const MemoList = ({
   darkMode,
   addMemo,
   updateMemo,
-  calculateTextareaRows,
   handleMemoRadioChange,
   moveMemoToTop,
   moveMemoToBottom,
@@ -89,7 +88,6 @@ export const MemoList = ({
                 draggedMemo={draggedMemo}
                 darkMode={darkMode}
                 updateMemo={updateMemo}
-                calculateTextareaRows={calculateTextareaRows}
                 handleMemoRadioChange={handleMemoRadioChange}
                 moveMemoToTop={moveMemoToTop}
                 moveMemoToBottom={moveMemoToBottom}
