@@ -58,6 +58,7 @@
 - **영구 보관**: 앱 종료 후에도 데이터 유지
 - **데이터 위치 표시**: 통계 탭에서 데이터 저장 경로 확인 가능
 - **삭제 확인 설정**: 세션/메모 삭제 시 확인 여부를 사용자가 설정 가능
+- **자동 마이그레이션**: 앱 업데이트 시 이전 버전 데이터 자동 마이그레이션
 
 ## 스크린샷
 
@@ -92,7 +93,8 @@
 3. **시간 설정**: 25분 권장 (포모도로 기법) 또는 원하는 시간 선택
 4. **타이머 시작**: ▶️ 버튼 클릭
 5. **타이머 완료**: 완료/미완료/진행 중 선택
-6. **휴식 모드**: 작업 완료 후 휴식 타이머로 전환 가능
+6. **부분 저장**: 타이머 진행 중에도 ⏸️ 버튼 옆의 부분 저장 버튼으로 현재까지의 시간 저장 가능
+7. **휴식 모드**: 작업 완료 후 휴식 타이머로 전환 가능
 
 ### 메모 관리
 - **다중 메모**: 여러 작업을 동시에 관리하려면 + 버튼으로 새 메모 추가
@@ -138,7 +140,8 @@
 ├── minit-memos.json             # 메모 내용 (다중 메모 배열)
 ├── minit-tags.json              # 태그 목록
 ├── minit-darkmode.json          # 다크 모드 설정
-└── minit-dont-ask-delete.json  # 삭제 확인 설정 (다시 묻지 않음 옵션)
+├── minit-dont-ask-delete.json  # 삭제 확인 설정 (다시 묻지 않음 옵션)
+└── minit-app-version.json       # 앱 버전 정보 (마이그레이션용)
 ```
 
 통계 탭에서 정확한 데이터 저장 위치를 확인할 수 있습니다.
@@ -206,7 +209,9 @@ minit/
 │   │   └── window.js            # 윈도우 관리 핸들러
 │   └── utils/                    # Electron 유틸리티
 │       ├── paths.js             # 데이터 경로 관리
-│       └── storage.js            # 파일 저장/로드
+│       ├── storage.js            # 파일 저장/로드
+│       ├── schema.js             # 스키마 버전 관리 및 마이그레이션
+│       └── migration.js          # 데이터 마이그레이션 유틸리티
 ├── dist/                         # Vite 빌드 결과
 ├── dist-electron/                # Electron 빌드 결과
 └── data/                         # 사용자 데이터 저장 (런타임 생성)
@@ -256,10 +261,10 @@ npm run electron:build
 Electron handlers 모듈에 구현된 IPC 핸들러:
 
 **세션 관리** (`handlers/sessions.js`)
-- `save-sessions` / `load-sessions` - 작업 세션 저장/로드
+- `save-sessions` / `load-sessions` - 작업 세션 저장/로드 (스키마 마이그레이션 지원)
 
 **메모 관리** (`handlers/memos.js`)
-- `save-memos` / `load-memos` - 메모 저장/로드 (다중 메모 배열, 레거시 마이그레이션 지원)
+- `save-memos` / `load-memos` - 메모 저장/로드 (다중 메모 배열, 스키마 마이그레이션 지원)
 
 **태그 관리** (`handlers/tags.js`)
 - `save-tags` / `load-tags` - 태그 저장/로드
