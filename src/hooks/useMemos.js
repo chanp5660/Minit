@@ -18,7 +18,7 @@ export const useMemos = (extractTagsFn) => {
           const { ipcRenderer } = window.require('electron');
           const memosResult = await ipcRenderer.invoke('load-memos');
           if (memosResult.success && memosResult.data) {
-            // 메모 내용에서 태그 자동 추출 (마이그레이션)
+            // 메모 내용에서 태그 자동 추출
             const migratedMemos = memosResult.data.map(memo => ({
               ...memo,
               tags: extractTagsFn(memo.content || '')

@@ -210,8 +210,7 @@ minit/
 │   └── utils/                    # Electron 유틸리티
 │       ├── paths.js             # 데이터 경로 관리
 │       ├── storage.js            # 파일 저장/로드
-│       ├── schema.js             # 스키마 버전 관리 및 마이그레이션
-│       └── migration.js          # 데이터 마이그레이션 유틸리티
+│       └── schema.js             # 스키마 버전 관리
 ├── dist/                         # Vite 빌드 결과
 ├── dist-electron/                # Electron 빌드 결과
 └── data/                         # 사용자 데이터 저장 (런타임 생성)
