@@ -81,8 +81,8 @@
 ## 다운로드 및 실행
 
 빌드가 완료되면 `dist-electron` 폴더에 다음 파일이 생성됩니다:
-- `Minit Setup 1.0.2.exe` - 설치 프로그램
-- `Minit 1.0.2.exe` - 휴대용 실행 파일
+- `Minit Setup 1.0.3.exe` - 설치 프로그램
+- `Minit 1.0.3.exe` - 휴대용 실행 파일
 
 
 ## 사용 방법
@@ -169,7 +169,8 @@ minit/
 │   │   │   ├── TimerDisplay.jsx
 │   │   │   ├── TimerControls.jsx
 │   │   │   ├── TimerTypeToggle.jsx
-│   │   │   └── DurationSelector.jsx
+│   │   │   ├── DurationSelector.jsx
+│   │   │   └── QuickStats.jsx
 │   │   ├── Memo/                 # 메모 관련 컴포넌트
 │   │   │   ├── MemoList.jsx
 │   │   │   ├── MemoItem.jsx
@@ -224,7 +225,9 @@ minit/
 
 ## 최근 업데이트
 
-- **v1.0.2** (현재 버전): 버전 업데이트 및 안정성 개선
+- **v1.0.3** (현재 버전): 버전 업데이트
+
+- **v1.0.2**: 버전 업데이트 및 안정성 개선
   - 데이터 마이그레이션 기능 개선
   - 버그 수정 및 성능 최적화
 
