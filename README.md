@@ -1,4 +1,4 @@
-# ⏰ Minit
+# ⏰ Even5Minutes
 
 ![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
@@ -81,8 +81,8 @@
 ## 다운로드 및 실행
 
 빌드가 완료되면 `dist-electron` 폴더에 다음 파일이 생성됩니다:
-- `Minit Setup 1.0.3.exe` - 설치 프로그램
-- `Minit 1.0.3.exe` - 휴대용 실행 파일
+- `Even5Minutes Setup 1.0.3.exe` - 설치 프로그램
+- `Even5Minutes 1.0.3.exe` - 휴대용 실행 파일
 
 
 ## 사용 방법
@@ -136,12 +136,12 @@
 
 ```
 {실행파일 폴더}/data/
-├── minit-sessions.json          # 작업 세션 기록
-├── minit-memos.json             # 메모 내용 (다중 메모 배열)
-├── minit-tags.json              # 태그 목록
-├── minit-darkmode.json          # 다크 모드 설정
-├── minit-dont-ask-delete.json  # 삭제 확인 설정 (다시 묻지 않음 옵션)
-└── minit-app-version.json       # 앱 버전 정보 (마이그레이션용)
+├── even5minutes-sessions.json          # 작업 세션 기록
+├── even5minutes-memos.json             # 메모 내용 (다중 메모 배열)
+├── even5minutes-tags.json              # 태그 목록
+├── even5minutes-darkmode.json          # 다크 모드 설정
+├── even5minutes-dont-ask-delete.json  # 삭제 확인 설정 (다시 묻지 않음 옵션)
+└── even5minutes-app-version.json       # 앱 버전 정보 (마이그레이션용)
 ```
 
 통계 탭에서 정확한 데이터 저장 위치를 확인할 수 있습니다.
@@ -158,7 +158,7 @@
 ## 프로젝트 구조
 
 ```
-minit/
+even5minutes/
 ├── src/
 │   ├── App.jsx                    # 메인 React 컴포넌트
 │   ├── main.jsx                   # React 진입점

@@ -1,7 +1,7 @@
 {
-  "name": "minit",
+  "name": "even5minutes",
   "version": "1.0.3",
-  "description": "Minit - minute와 mini의 합성, 타이머",
+  "description": "Even5Minutes - 5분만이라도 집중하자",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,7 @@
     "version:major": "npm version major && node scripts/update-version.js"
   },
   "keywords": [
-    "minit",
+    "even5minutes",
     "timer",
     "productivity",
     "time-tracking"
@@ -35,8 +35,8 @@
     "lucide-react": "^0.294.0"
   },
   "build": {
-    "appId": "com.minit.app",
-    "productName": "Minit",
+    "appId": "com.even5minutes.app",
+    "productName": "Even5Minutes",
     "directories": {
       "output": "dist-electron"
     },

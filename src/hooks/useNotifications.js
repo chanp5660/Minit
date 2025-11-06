@@ -22,7 +22,7 @@ export const useNotifications = () => {
         body: body,
         icon: '🍅',
         badge: '🍅',
-        tag: 'minit-timer'
+        tag: 'even5minutes-timer'
       });
 
       notification.onclick = () => {

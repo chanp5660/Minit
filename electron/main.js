@@ -22,7 +22,7 @@ function createWindow() {
       devTools: true
     },
     icon: path.join(__dirname, '../build/icon.png'),
-    title: '⏰ Minit'
+    title: '⏰ Even5Minutes'
   });
 
   // 개발 모드와 프로덕션 모드 구분

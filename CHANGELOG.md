@@ -56,5 +56,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Icons**: Lucide React
 
 ### Build Output
-- Windows 설치 프로그램: `Minit Setup 1.0.0.exe`
-- Windows 휴대용 실행 파일: `Minit 1.0.0.exe`
+- Windows 설치 프로그램: `Even5Minutes Setup 1.0.0.exe`
+- Windows 휴대용 실행 파일: `Even5Minutes 1.0.0.exe`

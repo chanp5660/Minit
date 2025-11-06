@@ -541,6 +541,7 @@ export default function PomodoroTimer() {
               pauseTimer={pauseTimer}
               resetTimer={resetTimer}
               saveCurrentSession={saveCurrentSession}
+              darkMode={darkMode}
             />
 
             {/* Duration Selector */}
