@@ -1,6 +1,6 @@
 # ⏰ Minit
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
@@ -81,8 +81,8 @@
 ## 다운로드 및 실행
 
 빌드가 완료되면 `dist-electron` 폴더에 다음 파일이 생성됩니다:
-- `Minit Setup 1.0.0.exe` - 설치 프로그램
-- `Minit 1.0.0.exe` - 휴대용 실행 파일
+- `Minit Setup 1.0.2.exe` - 설치 프로그램
+- `Minit 1.0.2.exe` - 휴대용 실행 파일
 
 
 ## 사용 방법
@@ -224,7 +224,11 @@ minit/
 
 ## 최근 업데이트
 
-- **v1.0.0** (현재 버전): 초기 릴리스
+- **v1.0.2** (현재 버전): 버전 업데이트 및 안정성 개선
+  - 데이터 마이그레이션 기능 개선
+  - 버그 수정 및 성능 최적화
+
+- **v1.0.0**: 초기 릴리스
   - 작업/휴식 타이머 기능
   - 태그 시스템 및 필터링
   - 다중 메모 관리
@@ -252,7 +256,7 @@ npm run electron:build
 
 ### 버전 업데이트
 
-1. `package.json`의 `version` 필드를 수정 (예: `1.0.0` → `1.0.1`)
+1. `package.json`의 `version` 필드를 수정 (예: `1.0.2` → `1.0.3`)
 2. `npm run electron:build` 실행
 3. 생성된 `Minit Setup {버전}.exe`로 설치 테스트
 
