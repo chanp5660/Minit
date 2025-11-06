@@ -251,6 +251,14 @@ npm run electron:build
 
 **⚠️ 주의사항**: `npm run electron:build` 명령어에서 오류가 발생하면 cmd를 관리자 권한으로 실행하여 명령어를 실행해야 합니다.
 
+### 버전 업데이트
+
+1. `package.json`의 `version` 필드를 수정 (예: `1.0.0` → `1.0.1`)
+2. `npm run electron:build` 실행
+3. 생성된 `Minit Setup {버전}.exe`로 설치 테스트
+
+**자동 마이그레이션**: 버전이 변경되면 앱이 자동으로 이전 버전의 데이터(세션, 메모, 태그, 설정)를 새 설치 경로로 마이그레이션합니다.
+
 ### 빌드 스크립트
 - `npm run dev` - Vite 개발 서버만 실행
 - `npm run build` - Vite 프로덕션 빌드
