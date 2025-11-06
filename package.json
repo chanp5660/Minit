@@ -1,6 +1,6 @@
 {
   "name": "minit",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Minit - minute와 mini의 합성, 타이머",
   "main": "electron/main.js",
   "scripts": {
@@ -13,7 +13,12 @@
     "version:minor": "npm version minor && node scripts/update-version.js",
     "version:major": "npm version major && node scripts/update-version.js"
   },
-  "keywords": ["minit", "timer", "productivity", "time-tracking"],
+  "keywords": [
+    "minit",
+    "timer",
+    "productivity",
+    "time-tracking"
+  ],
   "author": "Chan Park",
   "license": "MIT",
   "devDependencies": {
@@ -40,7 +45,10 @@
       "electron/**/*"
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "build/icon.ico",
       "sign": null
     },
