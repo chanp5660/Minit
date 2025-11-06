@@ -4,10 +4,10 @@ const fs = require('fs');
 
 // 데이터 저장 경로 함수
 function getDataPath() {
-  // 실행 파일이 있는 폴더의 data 디렉토리
-  const exePath = app.getPath('exe');
-  const exeDir = path.dirname(exePath);
-  return path.join(exeDir, 'data');
+  // 사용자 데이터 디렉토리의 data 폴더
+  // Windows: C:\Users\user\AppData\Roaming\minit\data
+  const userDataPath = app.getPath('userData');
+  return path.join(userDataPath, 'data');
 }
 
 function getSessionsFilePath() {
