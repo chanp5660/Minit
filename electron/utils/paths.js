@@ -107,7 +107,37 @@ function findLegacyDataPaths() {
     console.error('부모 디렉토리 검색 실패:', e);
   }
   
-  // 2. Windows 일반 설치 경로 검색
+  // 2. 개발 환경 경로 검색 (node_modules/electron/dist/data)
+  try {
+    const exePath = app.getPath('exe');
+    const exeDir = path.dirname(exePath);
+    
+    // 실행 파일이 node_modules/electron/dist 디렉토리에 있는지 확인
+    if (exeDir.includes('node_modules') && exeDir.includes('electron') && exeDir.includes('dist')) {
+      // 같은 디렉토리의 data 폴더 검색
+      const devDataPath = path.join(exeDir, 'data');
+      const result = checkPath(devDataPath);
+      if (result) {
+        foundPaths.push(result);
+      }
+      
+      // 프로젝트 루트에서 node_modules/electron/dist/data 경로도 검색
+      // 실행 파일 경로에서 node_modules/electron/dist까지의 경로를 찾아서 사용
+      const nodeModulesIndex = exeDir.indexOf('node_modules');
+      if (nodeModulesIndex !== -1) {
+        const projectRoot = exeDir.substring(0, nodeModulesIndex);
+        const devDataPathFromRoot = path.join(projectRoot, 'node_modules', 'electron', 'dist', 'data');
+        const resultFromRoot = checkPath(devDataPathFromRoot);
+        if (resultFromRoot) {
+          foundPaths.push(resultFromRoot);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('개발 환경 경로 검색 실패:', e);
+  }
+
+  // 3. Windows 일반 설치 경로 검색
   if (process.platform === 'win32') {
     const userProfile = os.homedir();
     const programFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
@@ -119,7 +149,11 @@ function findLegacyDataPaths() {
       path.join(programFilesX86, 'Minit', 'data'),
       path.join(localAppData, 'Programs', 'Minit', 'data'),
       path.join(userProfile, 'Desktop', 'Minit', 'data'),
-      path.join(userProfile, 'Documents', 'Minit', 'data')
+      path.join(userProfile, 'Documents', 'Minit', 'data'),
+      // 개발 환경 경로 (프로젝트 루트에서 node_modules/electron/dist/data)
+      path.join(userProfile, 'Desktop', 'Minit', 'node_modules', 'electron', 'dist', 'data'),
+      path.join(userProfile, 'Documents', 'Minit', 'node_modules', 'electron', 'dist', 'data'),
+      path.join(userProfile, 'Minit', 'node_modules', 'electron', 'dist', 'data')
     ];
     
     searchPaths.forEach(searchPath => {
@@ -134,7 +168,7 @@ function findLegacyDataPaths() {
     });
   }
   
-  // 3. 중복 제거 및 최신 수정 시간 순 정렬
+  // 4. 중복 제거 및 최신 수정 시간 순 정렬
   const uniquePaths = [];
   const seenPaths = new Set();
   
