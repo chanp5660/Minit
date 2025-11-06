@@ -16,7 +16,11 @@ const {
 const { saveFile, loadFile } = require('./storage');
 const {
   migrateMemosArray,
-  migrateSessionsArray
+  migrateSessionsArray,
+  detectMemoSchemaVersion,
+  detectSessionSchemaVersion,
+  MEMO_SCHEMA_VERSION,
+  SESSION_SCHEMA_VERSION
 } = require('./schema');
 
 /**
@@ -130,8 +134,17 @@ function migrateDataFromPath(sourceDataPath, targetDataPath) {
       if (fs.existsSync(sourceSessionsPath)) {
         const sourceResult = loadFile(sourceSessionsPath, []);
         if (sourceResult.success && Array.isArray(sourceResult.data)) {
-          // 스키마 마이그레이션 적용
-          const migratedSessions = migrateSessionsArray(sourceResult.data);
+          // 스키마 버전 확인: 첫 번째 세션의 스키마 버전을 확인 (또는 빈 배열이면 건너뛰기)
+          let sourceSessions = sourceResult.data;
+          
+          if (sourceSessions.length > 0) {
+            const firstSessionVersion = detectSessionSchemaVersion(sourceSessions[0]);
+            if (firstSessionVersion !== SESSION_SCHEMA_VERSION) {
+              // 스키마 버전이 다르면 마이그레이션 필요
+              sourceSessions = migrateSessionsArray(sourceResult.data);
+            }
+            // 스키마 버전이 같으면 sourceSessions는 그대로 사용 (복사만)
+          }
           
           // 타겟 파일이 있으면 병합 (ID 기준 중복 제거)
           let targetSessions = [];
@@ -144,13 +157,16 @@ function migrateDataFromPath(sourceDataPath, targetDataPath) {
           
           // 중복 제거: 소스에 있는 세션 ID가 타겟에 없으면 추가
           const targetSessionIds = new Set(targetSessions.map(s => s.id));
-          const newSessions = migratedSessions.filter(s => !targetSessionIds.has(s.id));
+          const newSessions = sourceSessions.filter(s => !targetSessionIds.has(s.id));
           
-          if (newSessions.length > 0) {
-            const mergedSessions = [...targetSessions, ...newSessions];
+          // 타겟 파일이 없거나 새 세션이 있으면 저장
+          if (!fs.existsSync(targetSessionsPath) || newSessions.length > 0) {
+            const mergedSessions = targetSessions.length > 0 
+              ? [...targetSessions, ...newSessions]
+              : sourceSessions; // 타겟이 비어있으면 소스 데이터를 그대로 사용
             const saveResult = saveFile(targetSessionsPath, mergedSessions);
             if (saveResult.success) {
-              result.migrated.sessions = newSessions.length;
+              result.migrated.sessions = newSessions.length > 0 ? newSessions.length : sourceSessions.length;
             } else {
               result.errors.push(`세션 저장 실패: ${saveResult.error}`);
             }
@@ -170,8 +186,17 @@ function migrateDataFromPath(sourceDataPath, targetDataPath) {
       if (fs.existsSync(sourceMemosPath)) {
         const sourceResult = loadFile(sourceMemosPath, []);
         if (sourceResult.success && Array.isArray(sourceResult.data)) {
-          // 스키마 마이그레이션 적용
-          const migratedMemos = migrateMemosArray(sourceResult.data);
+          // 스키마 버전 확인: 첫 번째 메모의 스키마 버전을 확인 (또는 빈 배열이면 건너뛰기)
+          let sourceMemos = sourceResult.data;
+          
+          if (sourceMemos.length > 0) {
+            const firstMemoVersion = detectMemoSchemaVersion(sourceMemos[0]);
+            if (firstMemoVersion !== MEMO_SCHEMA_VERSION) {
+              // 스키마 버전이 다르면 마이그레이션 필요
+              sourceMemos = migrateMemosArray(sourceResult.data);
+            }
+            // 스키마 버전이 같으면 sourceMemos는 그대로 사용 (복사만)
+          }
           
           // 타겟 파일이 있으면 병합 (ID 기준 중복 제거)
           let targetMemos = [];
@@ -184,22 +209,28 @@ function migrateDataFromPath(sourceDataPath, targetDataPath) {
           
           // 중복 제거: 소스에 있는 메모 ID가 타겟에 없으면 추가
           const targetMemoIds = new Set(targetMemos.map(m => m.id));
-          const newMemos = migratedMemos.filter(m => !targetMemoIds.has(m.id));
+          const newMemos = sourceMemos.filter(m => !targetMemoIds.has(m.id));
           
-          if (newMemos.length > 0) {
-            // order 재조정
-            const maxOrder = targetMemos.length > 0 
-              ? Math.max(...targetMemos.map(m => m.order || 0))
-              : -1;
-            const adjustedMemos = newMemos.map((memo, index) => ({
-              ...memo,
-              order: maxOrder + 1 + index
-            }));
+          // 타겟 파일이 없거나 새 메모가 있으면 저장
+          if (!fs.existsSync(targetMemosPath) || newMemos.length > 0) {
+            let mergedMemos;
             
-            const mergedMemos = [...targetMemos, ...adjustedMemos];
+            if (targetMemos.length > 0) {
+              // order 재조정
+              const maxOrder = Math.max(...targetMemos.map(m => m.order || 0));
+              const adjustedMemos = newMemos.map((memo, index) => ({
+                ...memo,
+                order: maxOrder + 1 + index
+              }));
+              mergedMemos = [...targetMemos, ...adjustedMemos];
+            } else {
+              // 타겟이 비어있으면 소스 데이터를 그대로 사용 (order는 이미 적용됨)
+              mergedMemos = sourceMemos;
+            }
+            
             const saveResult = saveFile(targetMemosPath, mergedMemos);
             if (saveResult.success) {
-              result.migrated.memos = newMemos.length;
+              result.migrated.memos = newMemos.length > 0 ? newMemos.length : sourceMemos.length;
             } else {
               result.errors.push(`메모 저장 실패: ${saveResult.error}`);
             }
@@ -232,11 +263,14 @@ function migrateDataFromPath(sourceDataPath, targetDataPath) {
           const targetTagSet = new Set(targetTags);
           const newTags = sourceResult.data.filter(tag => !targetTagSet.has(tag));
           
-          if (newTags.length > 0) {
-            const mergedTags = [...targetTags, ...newTags];
+          // 타겟 파일이 없거나 새 태그가 있으면 저장
+          if (!fs.existsSync(targetTagsPath) || newTags.length > 0) {
+            const mergedTags = targetTags.length > 0
+              ? [...targetTags, ...newTags]
+              : sourceResult.data; // 타겟이 비어있으면 소스 데이터를 그대로 사용
             const saveResult = saveFile(targetTagsPath, mergedTags);
             if (saveResult.success) {
-              result.migrated.tags = newTags.length;
+              result.migrated.tags = newTags.length > 0 ? newTags.length : sourceResult.data.length;
             } else {
               result.errors.push(`태그 저장 실패: ${saveResult.error}`);
             }
